@@ -15,7 +15,11 @@
 No return value, called to visualize the fitted model's results
 }
 \description{
-Mixture Missing Plotting
+Provide a parallel plot of up to the first 10 variables of a multivariate
+data sets, and a line plot showing log-likelihood values at every iteration
+during the EM algorithm. When applicable, pairwise scatter plots highlighting
+outliers and/or observations whose values are missing but are replaced by
+expectations obtained in the EM algorithm will be included.
 }
 \examples{
 

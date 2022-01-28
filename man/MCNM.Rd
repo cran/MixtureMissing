@@ -128,6 +128,6 @@ plot(mod)
 \references{
 Punzo, A. and McNicholas, P.D., 2016. Parsimonious mixtures of multivariate
   contaminated normal distributions. \emph{Biometrical Journal, 58}(6), pp.1506-1537. \cr \cr
-Tong, H. and Tortora, C. (2020). Cluster analysis and outlier detection with
-  missing data. \emph{arXiv preprint arXiv:2012.05394.}
+Tong, H. and, Tortora, C., 2022. Model-based clustering and outlier detection
+  with missing data. \emph{Advances in Data Analysis and Classification}.
 }

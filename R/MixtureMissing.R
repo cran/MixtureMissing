@@ -1,4 +1,16 @@
+#######################################
+###                                 ###
+###       Plot MixtureMissing       ###
+###                                 ###
+#######################################
+
 #' Mixture Missing Plotting
+#'
+#' Provide a parallel plot of up to the first 10 variables of a multivariate
+#' data sets, and a line plot showing log-likelihood values at every iteration
+#' during the EM algorithm. When applicable, pairwise scatter plots highlighting
+#' outliers and/or observations whose values are missing but are replaced by
+#' expectations obtained in the EM algorithm will be included.
 #'
 #' @param x A \code{MixtureMissing} object.
 #' @param ... Arguments to be passed to methods, such as graphical parameters.
@@ -24,9 +36,8 @@
 #' plot(mod)
 #'
 #' @importFrom graphics axis barplot legend matplot plot
-#' @importFrom GGally ggparcoord
-#' @importFrom ggplot2 ggplot ggtitle theme_bw
 #' @importFrom graphics pairs par
+#' @importFrom MASS parcoord
 #' @export plot.MixtureMissing
 #' @export
 plot.MixtureMissing <- function(x, ...) {
@@ -37,16 +48,24 @@ plot.MixtureMissing <- function(x, ...) {
   col_incomplete <- 'tomato'
 
   model    <- x$model
-  clusters <- as.character(x$clusters)
-  outliers <- x$outliers
+  clusters <- x$clusters
   dat      <- x$data
   d        <- ncol(dat)
   d        <- ifelse(is.null(d), 1, d)
 
+  outliers <- x$outliers
+  if (is.null(outliers)) {
+    outliers <- rep(FALSE, length(clusters))
+  }
+
   if (d > 1) {
     if (d < 10) {
-      ggparcoord(data = cbind(dat, clusters), groupColumn = d + 1, columns = 1:d) +
-        theme_bw() + ggtitle('Parallel Coordinate Plot')
+      # print(
+      #   ggparcoord(data = cbind(dat, clusters), groupColumn = d + 1, columns = 1:d) +
+      #   theme_bw() + ggtitle('Parallel Coordinate Plot')
+      # )
+
+      parcoord(dat, col= clusters, main = 'Parallel Coordinate Plot')
 
       if (d > 2) {
         pairs(dat, col = clusters, pch = ifelse(outliers, pch_bad, pch_good),
@@ -69,14 +88,24 @@ plot.MixtureMissing <- function(x, ...) {
 
       }
     } else {
-      ggparcoord(data = cbind(clusters, dat), groupColumn = 1, columns = 2:11) +
-        theme_bw() + ggtitle('Parallel Coordinate Plot - First 10 varaibles')
+      # print(
+      #   ggparcoord(data = cbind(clusters, dat), groupColumn = 1, columns = 2:11) +
+      #   theme_bw() + ggtitle('Parallel Coordinate Plot - First 10 varaibles')
+      # )
+
+      parcoord(dat[, 1:10], col = clusters, main = 'Parallel Coordinate Plot')
     }
   }
 
   #++++ Log-likelihood over iterations ++++#
   plot(x$loglik, type = 'b', pch = 16, xlab = 'Iteration', ylab = 'Log-Likelihood')
 }
+
+############################################
+###                                      ###
+###       Summarize MixtureMissing       ###
+###                                      ###
+############################################
 
 #' Summary for Mixture Missing
 #'
@@ -142,16 +171,18 @@ summary.MixtureMissing <- function(object, ...) {
   print(object$sigma)
 
   cat('\nInformation Criteria:\n')
-  print(data.frame(
-    AIC  = object$AIC,
-    BIC  = object$BIC,
-    KIC  = object$KIC,
-    KICc = object$KICc,
-    AIC3 = object$AIC3,
-    CAIC = object$CAIC,
-    AICc = object$AICc,
-    ICL  = object$ICL,
-    AWE  = object$AWE,
-    CLC  = object$CLC
-  ))
+  print(
+    data.frame(
+      AIC  = object$AIC,
+      BIC  = object$BIC,
+      KIC  = object$KIC,
+      KICc = object$KICc,
+      AIC3 = object$AIC3,
+      CAIC = object$CAIC,
+      AICc = object$AICc,
+      ICL  = object$ICL,
+      AWE  = object$AWE,
+      CLC  = object$CLC
+    )
+  )
 }

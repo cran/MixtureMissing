@@ -42,7 +42,8 @@
 #'   \item{num_cylinders}{eight, five, four, six, three, twelve, two.}
 #'   \item{fuel_system}{1bbl, 2bbl, 4bbl, idi, mfi, mpfi, spdi, spfi.}
 #' }
-#' @source \url{https://archive.ics.uci.edu/ml/datasets/automobile}
+#' @source Kibler, D., Aha, D.W., & Albert,M. (1989). Instance-based prediction of real-valued attributes. Computational Intelligence, Vol 5, 51--57.
+#' \url{https://archive.ics.uci.edu/ml/datasets/automobile}
 "auto"
 
 #' A Mixture of Two Far Student's \eqn{t} Distributions - 500 Observations
@@ -148,14 +149,16 @@
 #' substituted by high atypical points. Refer to Punzo and McNicholas (2016) for
 #' more information about the underlying distribution that generates this data set.
 #'
-#' @format A matrix with 500 rows and 3 variables. The first two variables make
-#'   the bivariate data, while the last variable refers to cluster memberships.
+#' @format A matrix with 500 rows and 4 variables. The first two variables make
+#'   the bivariate data; the last variable refers to cluster memberships; and the
+#'   last variable refers to outlier indication (1 means outlier, 0 otherwise).
 #'   The first 150 rows belong to cluster 1, and the last 350 rows belong to cluster
 #'   2
 #' \describe{
 #'   \item{d1}{variable 1.}
 #'   \item{d2}{variable 2.}
 #'   \item{cluster}{cluster memberships}
+#'   \item{outlier}{outlier indication}
 #' }
 #' @source Punzo, A. and McNicholas, P.D., 2016. Parsimonious mixtures of multivariate
 #'   contaminated normal distributions. \emph{Biometrical Journal, 58}(6), pp.1506-1537.
@@ -168,14 +171,16 @@
 #' substituted by noise. Refer to Punzo and McNicholas (2016) for more information
 #' about the underlying distribution that generates this data set.
 #'
-#' @format A matrix with 500 rows and 3 variables. The first two variables make
-#'   the bivariate data, while the last variable refers to cluster memberships.
+#' @format A matrix with 500 rows and 4 variables. The first two variables make
+#'   the bivariate data; the last variable refers to cluster memberships; and the
+#'   last variable refers to outlier indication (1 means outlier, 0 otherwise).
 #'   The first 150 rows belong to cluster 1, and the last 350 rows belong to cluster
 #'   2
 #' \describe{
 #'   \item{d1}{variable 1.}
 #'   \item{d2}{variable 2.}
 #'   \item{cluster}{cluster memberships}
+#'   \item{outlier}{outlier indication}
 #' }
 #' @source Punzo, A. and McNicholas, P.D., 2016. Parsimonious mixtures of multivariate
 #'   contaminated normal distributions. \emph{Biometrical Journal, 58}(6), pp.1506-1537.
@@ -188,14 +193,16 @@
 #' substituted by noise. Refer to Punzo and McNicholas (2016) for more information
 #' about the underlying distribution that generates this data set.
 #'
-#' @format A matrix with 500 rows and 3 variables. The first two variables make
-#'   the bivariate data, while the last variable refers to cluster memberships.
+#' @format A matrix with 500 rows and 4 variables. The first two variables make
+#'   the bivariate data; the last variable refers to cluster memberships; and the
+#'   last variable refers to outlier indication (1 means outlier, 0 otherwise).
 #'   The first 150 rows belong to cluster 1, and the last 350 rows belong to cluster
 #'   2
 #' \describe{
 #'   \item{d1}{variable 1.}
 #'   \item{d2}{variable 2.}
 #'   \item{cluster}{cluster memberships}
+#'   \item{outlier}{outlier indication}
 #' }
 #' @source Punzo, A. and McNicholas, P.D., 2016. Parsimonious mixtures of multivariate
 #'   contaminated normal distributions. \emph{Biometrical Journal, 58}(6), pp.1506-1537.
@@ -207,14 +214,16 @@
 #' and McNicholas (2016) for more information about the underlying distribution
 #' that generates this data set.
 #'
-#' @format A matrix with 100 rows and 3 variables. The first two variables make
-#'   the bivariate data, while the last variable refers to cluster memberships.
+#' @format A matrix with 500 rows and 4 variables. The first two variables make
+#'   the bivariate data; the last variable refers to cluster memberships; and the
+#'   last variable refers to outlier indication (1 means outlier, 0 otherwise).
 #'   The first 30 rows belong to cluster 1, and the last 70 rows belong to cluster
 #'   2
 #' \describe{
 #'   \item{d1}{variable 1.}
 #'   \item{d2}{variable 2.}
 #'   \item{cluster}{cluster memberships}
+#'   \item{outlier}{outlier indication}
 #' }
 #' @source Punzo, A. and McNicholas, P.D., 2016. Parsimonious mixtures of multivariate
 #'   contaminated normal distributions. \emph{Biometrical Journal, 58}(6), pp.1506-1537.
@@ -304,14 +313,16 @@
 #' substituted by high atypical points. Refer to Punzo and McNicholas (2016) for
 #' more information about the underlying distribution that generates this data set.
 #'
-#' @format A matrix with 100 rows and 3 variables. The first two variables make
-#'   the bivariate data, while the last variable refers to cluster memberships.
+#' @format A matrix with 100 rows and 4 variables. The first two variables make
+#'   the bivariate data; the last variable refers to cluster memberships; and the
+#'   last variable refers to outlier indication (1 means outlier, 0 otherwise).
 #'   The first 30 rows belong to cluster 1, and the last 70 rows belong to cluster
 #'   2
 #' \describe{
 #'   \item{d1}{variable 1.}
 #'   \item{d2}{variable 2.}
 #'   \item{cluster}{cluster memberships}
+#'   \item{outlier}{outlier indication}
 #' }
 #' @source Punzo, A. and McNicholas, P.D., 2016. Parsimonious mixtures of multivariate
 #'   contaminated normal distributions. \emph{Biometrical Journal, 58}(6), pp.1506-1537.
@@ -324,14 +335,16 @@
 #' substituted by noise. Refer to Punzo and McNicholas (2016) for more information
 #' about the underlying distribution that generates this data set.
 #'
-#' @format A matrix with 100 rows and 3 variables. The first two variables make
-#'   the bivariate data, while the last variable refers to cluster memberships.
+#' @format A matrix with 100 rows and 4 variables. The first two variables make
+#'   the bivariate data; the last variable refers to cluster memberships; and the
+#'   last variable refers to outlier indication (1 means outlier, 0 otherwise).
 #'   The first 30 rows belong to cluster 1, and the last 70 rows belong to cluster
 #'   2
 #' \describe{
 #'   \item{d1}{variable 1.}
 #'   \item{d2}{variable 2.}
 #'   \item{cluster}{cluster memberships}
+#'   \item{outlier}{outlier indication}
 #' }
 #' @source Punzo, A. and McNicholas, P.D., 2016. Parsimonious mixtures of multivariate
 #'   contaminated normal distributions. \emph{Biometrical Journal, 58}(6), pp.1506-1537.
@@ -344,14 +357,16 @@
 #' substituted by noise. Refer to Punzo and McNicholas (2016) for more information
 #' about the underlying distribution that generates this data set.
 #'
-#' @format A matrix with 100 rows and 3 variables. The first two variables make
-#'   the bivariate data, while the last variable refers to cluster memberships.
+#' @format A matrix with 100 rows and 4 variables. The first two variables make
+#'   the bivariate data; the last variable refers to cluster memberships; and the
+#'   last variable refers to outlier indication (1 means outlier, 0 otherwise).
 #'   The first 30 rows belong to cluster 1, and the last 70 rows belong to cluster
 #'   2
 #' \describe{
 #'   \item{d1}{variable 1.}
 #'   \item{d2}{variable 2.}
 #'   \item{cluster}{cluster memberships}
+#'   \item{outlier}{outlier indication}
 #' }
 #' @source Punzo, A. and McNicholas, P.D., 2016. Parsimonious mixtures of multivariate
 #'   contaminated normal distributions. \emph{Biometrical Journal, 58}(6), pp.1506-1537.

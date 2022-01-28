@@ -40,6 +40,7 @@ A data frame with 205 rows and 26 variables. The first 15 variables are
 }
 }
 \source{
+Kibler, D., Aha, D.W., & Albert,M. (1989). Instance-based prediction of real-valued attributes. Computational Intelligence, Vol 5, 51--57.
 \url{https://archive.ics.uci.edu/ml/datasets/automobile}
 }
 \usage{

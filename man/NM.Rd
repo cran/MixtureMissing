@@ -52,8 +52,8 @@ are chosen.}
 \value{
 An object of class \code{MixtureMissing} with:
   \item{pi}{Mixing proportions.}
-  \item{mu}{Component mean vectors.}
-  \item{sigma}{Component covariance matrices.}
+  \item{mu}{Component means.}
+  \item{sigma}{Component variances.}
   \item{z_tilde}{An \eqn{n} by \eqn{G} matrix where each row indicates the expected
     probabilities that the corresponding observation belongs to each cluster.}
   \item{clusters}{A numeric vector of length \eqn{n} indicating cluster

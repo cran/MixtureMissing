@@ -340,7 +340,7 @@ MNM_incomplete_data <- function(
   }
 
   if (iter < max_iter) {
-    cat('Convergence was reached before', max_iter, 'iterations\n')
+    cat('\nConvergence was reached before', max_iter, 'iterations\n')
   }
 
   #------------------------------#
@@ -390,8 +390,8 @@ MNM_incomplete_data <- function(
   #  Information criteria  #
   #------------------------#
 
-  AIC <- 2 * final_loglik - 2 * npar$total
-  BIC <- 2 * final_loglik - npar$total * log(n)
+  AIC <- -2 * final_loglik + 2 * npar$total
+  BIC <- -2 * final_loglik + npar$total * log(n)
 
   KIC  <- -2 * final_loglik + 3 * (npar$total + 1)
   KICc <- -2 * final_loglik + 2 * (npar$total + 1) * n/(n-npar$total -2) - n * digamma((n-npar$total)/2) + n * log(n/2)
@@ -572,7 +572,7 @@ MNM_complete_data <- function(
   }
 
   if (iter < max_iter) {
-    cat('Convergence was reached before', max_iter, 'iterations\n')
+    cat('\nConvergence was reached before', max_iter, 'iterations\n')
   }
 
   #------------------------------#
@@ -596,8 +596,8 @@ MNM_complete_data <- function(
   #  Information criteria  #
   #------------------------#
 
-  AIC <- 2 * final_loglik - 2 * npar$total
-  BIC <- 2 * final_loglik - npar$total * log(n)
+  AIC <- -2 * final_loglik + 2 * npar$total
+  BIC <- -2 * final_loglik + npar$total * log(n)
 
   KIC  <- -2 * final_loglik + 3 * (npar$total + 1)
   KICc <- -2 * final_loglik + 2 * (npar$total + 1) * n/(n-npar$total -2) - n * digamma((n-npar$total)/2) + n * log(n/2)

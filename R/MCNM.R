@@ -82,8 +82,8 @@
 #' @references
 #' Punzo, A. and McNicholas, P.D., 2016. Parsimonious mixtures of multivariate
 #'   contaminated normal distributions. \emph{Biometrical Journal, 58}(6), pp.1506-1537. \cr \cr
-#' Tong, H. and Tortora, C. (2020). Cluster analysis and outlier detection with
-#'   missing data. \emph{arXiv preprint arXiv:2012.05394.}
+#' Tong, H. and, Tortora, C., 2022. Model-based clustering and outlier detection
+#'   with missing data. \emph{Advances in Data Analysis and Classification}.
 #'
 #' @examples
 #'
@@ -389,7 +389,7 @@ MCNM_incomplete_data <- function(
   }
 
   if (iter < max_iter) {
-    cat('Convergence was reached before', max_iter, 'iterations\n')
+    cat('\nConvergence was reached before', max_iter, 'iterations\n')
   }
 
   #------------------------------#
@@ -444,8 +444,8 @@ MCNM_incomplete_data <- function(
   #  Information criteria  #
   #------------------------#
 
-  AIC <- 2 * final_loglik - 2 * npar$total
-  BIC <- 2 * final_loglik - npar$total * log(n)
+  AIC <- -2 * final_loglik + 2 * npar$total
+  BIC <- -2 * final_loglik + npar$total * log(n)
 
   KIC  <- -2 * final_loglik + 3 * (npar$total + 1)
   KICc <- -2 * final_loglik + 2 * (npar$total + 1) * n/(n-npar$total - 2) - n * digamma((n-npar$total)/2) + n * log(n/2)
@@ -651,7 +651,7 @@ MCNM_complete_data <- function(
   }
 
   if (iter < max_iter) {
-    cat('Convergence was reached before', max_iter, 'iterations\n')
+    cat('\nConvergence was reached before', max_iter, 'iterations\n')
   }
 
   #------------------------------#
@@ -685,8 +685,8 @@ MCNM_complete_data <- function(
   #  Information criteria  #
   #------------------------#
 
-  AIC <- 2 * final_loglik - 2 * npar$total
-  BIC <- 2 * final_loglik - npar$total * log(n)
+  AIC <- -2 * final_loglik + 2 * npar$total
+  BIC <- -2 * final_loglik + npar$total * log(n)
 
   KIC  <- -2 * final_loglik + 3 * (npar$total + 1)
   KICc <- -2 * final_loglik + 2 * (npar$total + 1) * n/(n-npar$total -2) - n * digamma((n-npar$total)/2) + n * log(n/2)

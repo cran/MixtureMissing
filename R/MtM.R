@@ -395,7 +395,7 @@ MtM_incomplete_data <- function(
   }
 
   if (iter < max_iter) {
-    cat('Convergence was reached before', max_iter, 'iterations\n')
+    cat('\nConvergence was reached before', max_iter, 'iterations\n')
   }
 
   #------------------------------#
@@ -456,8 +456,8 @@ MtM_incomplete_data <- function(
   #  Information criteria  #
   #------------------------#
 
-  AIC <- 2 * final_loglik - 2 * npar$total
-  BIC <- 2 * final_loglik - npar$total * log(n)
+  AIC  <- -2 * final_loglik + 2 * npar$total
+  BIC  <- -2 * final_loglik + npar$total * log(n)
 
   KIC  <- -2 * final_loglik + 3 * (npar$total + 1)
   KICc <- -2 * final_loglik + 2 * (npar$total + 1) * n/(n-npar$total -2) - n * digamma((n-npar$total)/2) + n * log(n/2)
@@ -466,11 +466,11 @@ MtM_incomplete_data <- function(
   CAIC <- -2 * final_loglik + npar$total * (1 + log(n))
   AICc <- -2 * final_loglik + 2 * npar$total * n/(n - npar$total - 1)
 
-  ent <- apply(z_tilde, 1, max)
-  ICL <- BIC - sum(ent * log(ent))
+  ent  <- apply(z_tilde, 1, max)
+  ICL  <- BIC - sum(ent * log(ent))
 
-  AWE <- -2 * (final_loglik + sum(ent * log(ent))) + 2 * npar$total * (3/2 + log(n))
-  CLC <- -2 * final_loglik + 2 * sum(ent * log(ent))
+  AWE  <- -2 * (final_loglik + sum(ent * log(ent))) + 2 * npar$total * (3/2 + log(n))
+  CLC  <- -2 * final_loglik + 2 * sum(ent * log(ent))
 
   #-------------------#
   #  Prepare outputs  #
@@ -680,7 +680,7 @@ MtM_complete_data <- function(
   }
 
   if (iter < max_iter) {
-    cat('Convergence was reached before', max_iter, 'iterations\n')
+    cat('\nConvergence was reached before', max_iter, 'iterations\n')
   }
 
   #------------------------------#
@@ -714,8 +714,8 @@ MtM_complete_data <- function(
   #  Information criteria  #
   #------------------------#
 
-  AIC <- 2 * final_loglik - 2 * npar$total
-  BIC <- 2 * final_loglik - npar$total * log(n)
+  AIC <- -2 * final_loglik + 2 * npar$total
+  BIC <- -2 * final_loglik + npar$total * log(n)
 
   KIC  <- -2 * final_loglik + 3 * (npar$total + 1)
   KICc <- -2 * final_loglik + 2 * (npar$total + 1) * n/(n-npar$total -2) - n * digamma((n-npar$total)/2) + n * log(n/2)

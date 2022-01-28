@@ -56,8 +56,8 @@ are chosen.}
 \value{
 An object of class \code{MixtureMissing} with:
   \item{pi}{Mixing proportions.}
-  \item{mu}{Component mean vectors.}
-  \item{sigma}{Component covariance matrices.}
+  \item{mu}{Component means.}
+  \item{sigma}{Component variances.}
   \item{alpha}{Component proportions of good observations.}
   \item{eta}{Component degrees of contamination.}
   \item{z_tilde}{An \eqn{n} by \eqn{G} matrix where each row indicates the expected

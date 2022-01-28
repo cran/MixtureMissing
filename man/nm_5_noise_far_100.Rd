@@ -6,14 +6,16 @@
 \title{A Mixture of Two Far Normal Distributions with 5% of Points Randomly Substituted
 by Noise - 100 Observations}
 \format{
-A matrix with 100 rows and 3 variables. The first two variables make
-  the bivariate data, while the last variable refers to cluster memberships.
+A matrix with 100 rows and 4 variables. The first two variables make
+  the bivariate data; the last variable refers to cluster memberships; and the
+  last variable refers to outlier indication (1 means outlier, 0 otherwise).
   The first 30 rows belong to cluster 1, and the last 70 rows belong to cluster
   2
 \describe{
   \item{d1}{variable 1.}
   \item{d2}{variable 2.}
   \item{cluster}{cluster memberships}
+  \item{outlier}{outlier indication}
 }
 }
 \source{

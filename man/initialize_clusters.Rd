@@ -33,6 +33,8 @@ are chosen.}
 \value{
 A list with the following slots:
   \item{z}{Mapping probabilities in the form of an \eqn{n} by \eqn{G} matrix.}
+  \item{clusters}{An numeric vector with values from 1 to \eqn{G} indicating
+    initial cluster memberships.}
   \item{pi}{Component mixing proportions.}
   \item{mu}{If \code{X} is a matrix or data frame, \code{mu} is an \eqn{G} by \eqn{d}
     matrix where each row is the component mean vector. If \code{X} is a vector, \code{mu}

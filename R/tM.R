@@ -38,8 +38,8 @@
 #'
 #' @return An object of class \code{MixtureMissing} with:
 #'   \item{pi}{Mixing proportions.}
-#'   \item{mu}{Component mean vectors.}
-#'   \item{sigma}{Component covariance matrices.}
+#'   \item{mu}{Component means.}
+#'   \item{sigma}{Component variances.}
 #'   \item{df}{Component degrees of freedom.}
 #'   \item{z_tilde}{An \eqn{n} by \eqn{G} matrix where each row indicates the expected
 #'     probabilities that the corresponding observation belongs to each cluster.}
@@ -295,8 +295,8 @@ tM <- function(
   #  Information criteria  #
   #------------------------#
 
-  AIC <- 2 * final_loglik - 2 * npar$total
-  BIC <- 2 * final_loglik - npar$total * log(n)
+  AIC <- -2 * final_loglik + 2 * npar$total
+  BIC <- -2 * final_loglik + npar$total * log(n)
 
   KIC  <- -2 * final_loglik + 3 * (npar$total + 1)
   KICc <- -2 * final_loglik + 2 * (npar$total + 1) * n/(n-npar$total -2) - n * digamma((n-npar$total)/2) + n * log(n/2)

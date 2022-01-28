@@ -30,6 +30,8 @@
 #'
 #' @return A list with the following slots:
 #'   \item{z}{Mapping probabilities in the form of an \eqn{n} by \eqn{G} matrix.}
+#'   \item{clusters}{An numeric vector with values from 1 to \eqn{G} indicating
+#'     initial cluster memberships.}
 #'   \item{pi}{Component mixing proportions.}
 #'   \item{mu}{If \code{X} is a matrix or data frame, \code{mu} is an \eqn{G} by \eqn{d}
 #'     matrix where each row is the component mean vector. If \code{X} is a vector, \code{mu}
@@ -192,13 +194,24 @@ initialize_clusters <- function(
   py <- colSums(z) / n
 
   if (d > 1) {
-    mu <- t(sapply(1:G, function(g) {
-      X_g <- X[clusters == g, ]
-      if (is.vector(X_g)) {
-        return(X_g)
+
+    if (init_method %in% c('kmedoids', 'kmeans')) {
+      if (init_method == 'kmedoids') {
+        mu <- kmed$medoids
       }
-      return(colMeans(X_g))
-    }))
+
+      if (init_method == 'kmeans') {
+        mu <- km$centers
+      }
+    } else {
+      mu <- t(sapply(1:G, function(g) {
+        X_g <- X[clusters == g, ]
+        if (is.vector(X_g)) {
+          return(X_g)
+        }
+        return(colMeans(X_g))
+      }))
+    }
 
     sigma <- sapply(1:G, function(g) {
       X_g <- X[clusters == g, ]
@@ -359,6 +372,153 @@ generate_patterns <- function(d) {
 
   return(matr)
 }
+
+############################################################################
+###                                                                      ###
+###                    Evaluate Binary Classification                    ###
+###                                                                      ###
+############################################################################
+
+#' Binary Classification Evaluation
+#'
+#' Evaluate the performance of a classification model by comparing its predicted
+#' labels to the true labels. Various metrics are returned to give an insight on
+#' how well the model classifies the observations. This function is added to aid
+#' outlier detection evaluation of MCNM, CNM, MtM, and tM in case that true
+#' outliers are known in advance.
+#'
+#' @param true_labels An 0-1 or logical vector denoting the true labels. The
+#'   meaning of 0 and 1 (or TRUE and FALSE) is up to the user.
+#' @param pred_labels An 0-1 or logical vector denoting the true labels. The
+#'   meaning of 0 and 1 (or TRUE and FALSE) is up to the user.
+#'
+#' @return A list with the following slots:
+#'   \item{matr}{The confusion matrix built upon true labels and predicted labels.}
+#'   \item{TN}{True negative.}
+#'   \item{FP}{False positive (type I error).}
+#'   \item{FN}{False negative (type II error).}
+#'   \item{TP}{True Positive.}
+#'   \item{TPR}{True positive rate (sensitivy).}
+#'   \item{FPR}{False positive rate.}
+#'   \item{TNR}{True negative rate (specificity).}
+#'   \item{FNR}{False negative rate.}
+#'   \item{precision}{Precision or positive predictive value (PPV).}
+#'   \item{accuracy}{Accuracy.}
+#'   \item{error_rate}{Error rate.}
+#'   \item{FDR}{False discovery rate.}
+#'
+#' @examples
+#'
+#' #++++ Inputs are 0-1 vectors ++++#
+#'
+#' evaluation_metrics(
+#'   true_labels = c(1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 1),
+#'   pred_labels = c(1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1, 0, 1, 1, 1)
+#' )
+#'
+#' #++++ Inputs are logical vectors ++++#
+#'
+#' evaluation_metrics(
+#'   true_labels = c(TRUE, FALSE, FALSE, FALSE, TRUE, TRUE, TRUE, TRUE, FALSE, FALSE),
+#'   pred_labels = c(FALSE, FALSE, TRUE, FALSE, TRUE, FALSE, FALSE, TRUE, FALSE, FALSE)
+#' )
+#'
+#' @export
+evaluation_metrics <- function(
+  true_labels,        # a 0-1 or logical vector
+  pred_labels    # a 0-1 or logical vector
+) {
+
+  #----------------------#
+  #    Input checking    #
+  #----------------------#
+
+  if (!is.vector(true_labels) | !is.vector(pred_labels)) {
+    stop('true_labels and pred_labels must be vectors')
+  }
+
+  if (any(is.na(true_labels)) | any(is.na(pred_labels))) {
+    stop('true_labels and pred_labels must not contain NA')
+  }
+
+  if (is.logical(true_labels)) {
+    true_labels <- as.numeric(true_labels)
+  }
+
+  if (!is.numeric(true_labels)) {
+    stop('true_labels must be numeric or logical')
+  }
+
+  if (is.logical(pred_labels)) {
+    pred_labels <- as.numeric(pred_labels)
+  }
+
+  if (!is.numeric(pred_labels)) {
+    stop('pred_labels must be numeric or logical')
+  }
+
+  if (length(true_labels) != length(pred_labels)) {
+    stop('true_labels and pred_labels must have the same length')
+  }
+
+  #------------------------#
+  #    Confusion matrix    #
+  #------------------------#
+
+  # cat('
+  #   Structure of the confusion matrix:
+  #
+  #                     pred_labels
+  #                         0     1
+  #   true_labels        0 TN    FP
+  #                      1 FN    TP\n\n')
+
+  matr <- matrix(0, nrow = 2, ncol = 2,
+                 dimnames = list(c('true_0', 'true_1'),
+                                 c('pred_0', 'pred_1')))
+
+  tn <- sum(true_labels == 0 & pred_labels == 0)    # true negative
+  fp <- sum(true_labels == 0 & pred_labels == 1)    # false positive
+  fn <- sum(true_labels == 1 & pred_labels == 0)    # false negative
+  tp <- sum(true_labels == 1 & pred_labels == 1)    # true positive
+
+  matr[1, 1] <- tn
+  matr[1, 2] <- fp
+  matr[2, 1] <- fn
+  matr[2, 2] <- tp
+
+  p   <- fn + tp    # real positive cases
+  n   <- tn + fp    # real negative cases
+
+  tpr <- tp / (tp + fn)    # true positive rate (sensitivy)
+  fpr <- fp / (fp + tn)    # false positive rate (specificity)
+  tnr <- tn / (tn + fp)    # true negative rate
+  fnr <- fn / (fn + tp)    # false negative rate
+
+  preci <- tp / (tp + fp)         # precision
+  acc   <- (tn + tp) / (p + n)    # accuracy
+  err   <- 1 - acc                # error rate
+  fdr   <- fp / (fp + tp)         # false discovery rate
+
+  outputs <- list(
+    matr       = matr,
+    TN         = tn,
+    FP         = fp,
+    FN         = fn,
+    TP         = tp,
+    TPR        = tpr,
+    FPR        = fpr,
+    TNR        = tnr,
+    FNR        = fnr,
+    precision  = preci,
+    accuracy   = acc,
+    error_rate = err,
+    FDR        = fdr
+  )
+
+  return(outputs)
+}
+
 
 ############################################################################
 ###                                                                      ###

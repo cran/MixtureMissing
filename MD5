@@ -1,4 +1,4 @@
-ac05d01453e378951874e2c918223ff3 *DESCRIPTION
+c0a739836d795a172f2dbc8b1032541b *DESCRIPTION
 c5d60881ca4debfa08a48a417689830c *NAMESPACE
 49041948ddf64583a72ed91116660a59 *R/CNM.R
 e8dc6465f3aa388a00e83a3166eef854 *R/MCNM.R
@@ -8,7 +8,7 @@ e8dc6465f3aa388a00e83a3166eef854 *R/MCNM.R
 eebcece1bc3eae71cf80469cbca6307d *R/NM.R
 960acd929ca0f5616257fb657f452c1e *R/data.R
 79d730abc88dca3c21fac7da7ed2ab1b *R/tM.R
-e7163286ddda6edd8c18dfcc6b81bc10 *R/utils.R
+90cfc1e97c4b557095614f72515ca6ec *R/utils.R
 3c3cab4c0e55d2be14164c0482bcd5d0 *data/auto.rda
 779bd7857674072298b56990f50ee949 *data/cnm_close_100.rda
 80440b75eae7b7254599a9cfd3535632 *data/cnm_close_500.rda
@@ -36,7 +36,7 @@ dbe7bb5eed30379a7cfe1758bbd31bb0 *man/MCNM.Rd
 6bd3f3443b723e24da448895acc129ce *man/cnm_close_500.Rd
 94b2657ac7e305ad89900bc1a0ac5283 *man/cnm_far_100.Rd
 b01c0a37734e15237b76fbe78d5ca0ea *man/cnm_far_500.Rd
-3f04d379ae34408b8304a24421ddd518 *man/evaluation_metrics.Rd
+87efa9682f5d8a575f2783af8ee3c75f *man/evaluation_metrics.Rd
 95ffeba91d7b2a3ed77e3c0185a74c18 *man/generate_patterns.Rd
 7039df06f1a61964574b140a01301948 *man/hide_values.Rd
 d1426694e26d78dbefa518fc746be99c *man/initialize_clusters.Rd

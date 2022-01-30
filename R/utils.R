@@ -397,7 +397,7 @@ generate_patterns <- function(d) {
 #'   \item{TN}{True negative.}
 #'   \item{FP}{False positive (type I error).}
 #'   \item{FN}{False negative (type II error).}
-#'   \item{TP}{True Positive.}
+#'   \item{TP}{True positive.}
 #'   \item{TPR}{True positive rate (sensitivy).}
 #'   \item{FPR}{False positive rate.}
 #'   \item{TNR}{True negative rate (specificity).}

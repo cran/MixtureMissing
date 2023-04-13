@@ -1,46 +1,173 @@
 ###########################################################################
 ###                                                                     ###
-###           Cluster initialization using a heuristic method           ###
+###                    Cluster Memberships to Matrix                    ###
 ###                                                                     ###
 ###########################################################################
 
-#' Cluster Initialization
+clusters_to_matrix <- function(clusters, G = max(clusters)) {
+
+  if (G %% 1 != 0) {
+    stop('Number of clusters G must be an integer')
+  }
+
+  if (G < max(clusters)) {
+    stop('G must be at least max(clusters)')
+  }
+
+  n <- length(clusters)
+
+  if (G == 1) {
+
+    matr <- matrix(1, nrow = n, ncol = 1)
+
+  } else {
+
+    matr <- matrix(0, nrow = n, ncol = G)
+
+    for (g in 1:G) {
+      matr[clusters == g, g] <- 1
+    }
+
+  }
+
+  return(matr)
+
+}
+
+###########################################################################
+###                                                                     ###
+###                    Sample Statistics of Clusters                    ###
+###                                                                     ###
+###########################################################################
+
+cluster_pars <- function(
+    X,
+    clusters
+) {
+
+  #---------------------#
+  #    Input Checking   #
+  #---------------------#
+
+  if (is.data.frame(X)) {
+    X <- as.matrix(X)
+  }
+
+  if (!is.matrix(X)) {
+    X <- matrix(X, nrow = length(X), ncol = 1)
+  }
+
+  if (!is.numeric(X)) {
+    stop('X must be a numeric matrix, data frame or vector')
+  }
+
+  if (length(clusters) != nrow(X)) {
+    stop('clusters must match the number of observations')
+  }
+
+  if ( !is.vector(clusters) | !is.numeric(clusters) ) {
+    stop('clusters must be a numeric vector')
+  }
+
+  # if (!all(clusters %in% 1:G)) {
+  #   stop('All cluster memberships 1:G must be present')
+  # }
+
+  #--------------------------#
+  #    Extract Parameters    #
+  #--------------------------#
+
+  n <- nrow(X)
+  d <- ncol(X)
+  G <- max(clusters)
+
+  N <- table( factor(clusters, levels = 1:G) )
+
+  if (any(N == 0)) {
+    stop('At least one cluster has no observations')
+  }
+
+  py <- N / n
+
+  incomplete <- any(is.na(X))
+
+  if (incomplete) {
+    cc       <- complete.cases(X)
+    X        <- X[cc, ]
+    clusters <- clusters[cc]
+  }
+
+  mu    <- matrix(NA, nrow = G, ncol = d)
+  Sigma <- array(NA, dim = c(d, d, G))
+
+  for (g in 1:G) {
+    mu[g, ] <- colMeans(X[clusters == g, , drop = FALSE])
+
+    if (N[g] == 1) {
+      Sigma[, , g] <- matrix(0, nrow = d, ncol = d)
+    } else {
+      Sigma[, , g] <- var(X[clusters == g, , drop = FALSE])
+    }
+
+  }
+
+  #---------------------------------#
+  #    Prepare and return output    #
+  #---------------------------------#
+
+  output <- list(
+    size  = N,
+    pi    = py,
+    mu    = mu,
+    Sigma = Sigma
+  )
+
+  return(output)
+
+}
+
+###########################################################################
+###                                                                     ###
+###           Cluster Initialization using a Heuristic Method           ###
+###                                                                     ###
+###########################################################################
+
+#' Cluster Initialization using a Heuristic Method
 #'
 #' Initialize cluster memberships and component parameters to start the EM algorithm
 #' using a heuristic clustering method or user-defined labels.
 #'
-#' @param X An \eqn{n} by \eqn{d} matrix or data frame where \eqn{n} is the number of
+#' @param X An \eqn{n} x \eqn{d} matrix or data frame where \eqn{n} is the number of
 #'   observations and \eqn{d} is the number of columns or variables. Alternately,
 #'   \code{X} can be a vector of \eqn{n} observations.
-#' @param G The number of clusters.
+#' @param G The number of clusters, which must be at least 1. If \code{G = 1}, then
+#'   user-defined \code{clusters} is ignored.
 #' @param init_method (optional) A string specifying the method to initialize
 #'   the EM algorithm. "kmedoids" clustering is used by default. Alternative
-#'   methods include "kmeans", "hierarchical", "manual", "soft", "hard". When
-#'   "manual" is chosen, a vector \code{manual_clusters} of length \eqn{n} must
-#'   be specified.
-#' @param manual_clusters A vector of length \eqn{n} that specifies the initial
+#'   methods include "kmeans", "hierarchical", "manual". When
+#'   "manual" is chosen, a vector \code{clusters} of length \eqn{n} must
+#'   be specified. When \code{G = 1} and "kmedoids" clustering is used, the medoid
+#'   will be returned, not the sample mean.
+#' @param clusters A numeric vector of length \eqn{n} that specifies the initial
 #'   cluster memberships of the user when \code{init_method} is set to "manual".
-#'   Both numeric and character vectors are acceptable. This argument is NULL by
-#'   default, so that it is ignored whenever other given initialization methods
-#'   are chosen.
+#'   This argument is NULL by default, so that it is ignored whenever other given
+#'   initialization methods are chosen.
 #'
 #' @details Available heuristic methods include k-medoids clustering, k-means clustering,
-#'   hierarchical clustering, soft and hard clustering. Alternately, the user can also
-#'   enter pre-specified cluster memberships, making other initialization methods possible.
+#'   and hierarchical clustering. Alternately, the user can also enter pre-specified
+#'   cluster memberships, making other initialization methods possible. If the given
+#'   data set contains missing values, only observations with complete records will
+#'   be used to initialize clusters. However, in this case, except when \code{G = 1}, the resulting cluster
+#'   memberships will be set to \code{NULL} since they represent those complete records
+#'   rather than the original data set as a whole.
 #'
 #' @return A list with the following slots:
-#'   \item{z}{Mapping probabilities in the form of an \eqn{n} by \eqn{G} matrix.}
-#'   \item{clusters}{An numeric vector with values from 1 to \eqn{G} indicating
-#'     initial cluster memberships.}
 #'   \item{pi}{Component mixing proportions.}
-#'   \item{mu}{If \code{X} is a matrix or data frame, \code{mu} is an \eqn{G} by \eqn{d}
-#'     matrix where each row is the component mean vector. If \code{X} is a vector, \code{mu}
-#'     is a vector of \eqn{G} component means.}
-#'   \item{sigma}{If \code{X} is a matrix or data frame, \code{sigma} is a \eqn{G}-dimensional
-#'     array where each \eqn{d} by \eqn{d} matrix is the component covariance matrix. If
-#'     \code{X} is a vector, \code{sigma} is a vector of \eqn{G} component variances.}
-#'
-#' @details
+#'   \item{mu}{A \eqn{G} by \eqn{d} matrix where each row is the component mean vector.}
+#'   \item{Sigma}{A \eqn{G}-dimensional array where each \eqn{d} by \eqn{d} matrix
+#'     is the component covariance matrix.}
+#'   \item{clusters}{An numeric vector with values from 1 to \eqn{G} indicating
+#'     initial cluster memberships if \code{X} is a complete data set; NULL otherwise.}
 #'
 #' @references
 #' Everitt, B., Landau, S., Leese, M., and Stahl, D. (2011). \emph{Cluster Analysis}. John Wiley & Sons. \cr \cr
@@ -53,47 +180,41 @@
 #'
 #' #++++ Initialization using a heuristic method ++++#
 #'
-#' set.seed(1234)
-#'
-#' init <- initialize_clusters(iris[1:4], G = 3)
-#' init <- initialize_clusters(iris[1:4], G = 3, init_method = 'kmeans')
-#' init <- initialize_clusters(iris[1:4], G = 3, init_method = 'hierarchical')
-#' init <- initialize_clusters(iris[1:4], G = 3, init_method = 'soft')
-#' init <- initialize_clusters(iris[1:4], G = 3, init_method = 'hard')
+# set.seed(1234)
+#
+# init <- initialize_clusters(iris[1:4], G = 3)
+# init <- initialize_clusters(iris[1:4], G = 3, init_method = 'kmeans')
+# init <- initialize_clusters(iris[1:4], G = 3, init_method = 'hierarchical')
 #'
 #' #++++ Initialization using user-defined labels ++++#
 #'
 #' init <- initialize_clusters(iris[1:4], G = 3, init_method = 'manual',
-#'                             manual_clusters = iris$Species)
+#'                             clusters = as.numeric(iris$Species))
 #'
 #' #++++ Initial parameters and pairwise scatterplot showing the mapping ++++#
 #'
-#' init$z
 #' init$pi
 #' init$mu
-#' init$sigma
+#' init$Sigma
+#' init$clusters
 #'
 #' pairs(iris[1:4], col = init$clusters, pch = 16)
 #'
 #' @import cluster
 #' @export
 initialize_clusters <- function(
-  X,  # numeric data matrix; data frame will be converted to matrix
-  G,  # number of clusters
-  init_method = c("kmedoids", "kmeans", "hierarchical", "manual", "soft", "hard"),
-  manual_clusters = NULL
+    X,
+    G,
+    init_method = c("kmedoids", "kmeans", "hierarchical", "manual"),
+    clusters    = NULL
 ) {
 
-  #-------------------#
-  #  Input checking   #
-  #-------------------#
+  #----------------------#
+  #    Input checking    #
+  #----------------------#
 
-  if (is.null(G)) {
-    stop('Number of clusters G must be specified')
-  }
-
-  if (G < 2) {
-    stop('Number of clusters G must be at least 2')
+  if (G < 1) {
+    stop('Number of clusters G must be at least 1')
   }
 
   if (G %% 1 != 0) {
@@ -112,125 +233,282 @@ initialize_clusters <- function(
     stop('X must be a numeric matrix')
   }
 
-  if (any(is.na(X))) {
-    X <- X[complete.cases(X), ]
-  }
-
   init_method <- match.arg(init_method)
 
-  n <- nrow(X) # number of observations
-  d <- ncol(X) # number of variables/dimensions
+  #------------------------------#
+  #    Cluster Initialization    #
+  #------------------------------#
 
-  z <- matrix(0, nrow = n, ncol = G)
+  n <- nrow(X)
+  d <- ncol(X)
 
-  #-----------------------------------------------#
-  #  Initialization of z and cluster memberships  #
-  #-----------------------------------------------#
+  incomplete <- any(is.na(X))
+
+  if (incomplete) {
+    cc <- complete.cases(X)
+    X  <- X[cc, ]
+
+    if (init_method == 'manual') {
+      clusters <- clusters[cc]
+    }
+  }
+
+  if (G == 1) {
+
+    clusters <- rep(1, n)
+
+    if (init_method == 'kmedoids') {
+      kmed <- pam(X, G)
+    }
+
+  } else {
+
+    #-----------------#
+    #    K-Medoids    #
+    #-----------------#
+
+    if (init_method == 'kmedoids') {
+      kmed     <- pam(X, G)
+      clusters <- kmed$clustering
+    }
+
+    #---------------#
+    #    K-Means    #
+    #---------------#
+
+    if (init_method == 'kmeans') {
+      km       <- kmeans(X, G)
+      clusters <- km$cluster
+    }
+
+    #-------------------------------#
+    #    Hierarchical Clustering    #
+    #-------------------------------#
+
+    if (init_method == 'hierarchical') {
+      hc       <- hclust(dist(X), method = "ward.D")
+      clusters <- cutree(hc, k = G)
+    }
+
+    #-------------------------------#
+    #    User-Defined Clustering    #
+    #-------------------------------#
+
+    if (init_method == 'manual') {
+
+      if (is.null(clusters)) {
+        stop('clusters must be specified if manual initialization is chosen')
+      }
+
+      if ( !is.vector(clusters) | !is.numeric(clusters) ) {
+        stop('clusters must be a numeric vector')
+      }
+
+      if (length(clusters) != nrow(X)) {
+        stop('clusters must match the number of observations')
+      }
+
+      if (!all(clusters %in% 1:G)) {
+        stop('All cluster memberships 1:G must be present')
+      }
+
+    }
+
+  }
+
+  pars <- cluster_pars(X, clusters)
+
+  pi <- pars$pi
 
   if (init_method == 'kmedoids') {
-    kmed <- pam(X, G)
-    clusters <- kmed$clustering
-
-    for (g in 1:G) {
-      z[clusters == g, g] <- 1
-    }
-  }
-
-  if (init_method == 'kmeans') {
-    km <- kmeans(X, G)
-    clusters <- km$cluster
-
-    for (g in 1:G) {
-      z[clusters == g, g] <- 1
-    }
-  }
-
-  if (init_method == 'hierarchical') {
-    hc <- hclust(dist(X), method = "ward.D")
-    clusters <- cutree(hc, k = G)
-    for (g in 1:G) {
-      z[clusters == g, g] <- 1
-    }
-  }
-
-  if (init_method == 'manual') {
-    if (is.null(manual_clusters)) {
-      stop('Vector manual_clusters must be specified if manual initialization is chosen')
-    }
-
-    if (is.factor(manual_clusters)) {
-      manual_clusters <- as.character(manual_clusters)
-    }
-
-    if (!is.vector(manual_clusters)) {
-      stop('manual_clusters must be a vector')
-    }
-
-    if (length(manual_clusters) != n) {
-      stop('The length of manual_clusters must be the same as the number of rows')
-    }
-
-    clusters <- match(manual_clusters, sort(unique(manual_clusters)))
-    for (g in 1:G) {
-      z[clusters == g, g] <- 1
-    }
-  }
-
-  if (init_method == 'soft') {
-    z  <- matrix(runif(n * G), nrow = n, ncol = G)
-    z  <- z / rowSums(z)             #
-    clusters <- apply(z, 1, which.max)
-  }
-
-  if (init_method == 'hard') {
-    z <- t(rmultinom(n, size = 1, prob = rep(1/G, G)))
-    clusters <- apply(z, 1, which.max)
-  }
-
-  #--------------------------------------------------------------#
-  #  Parameters according the initial z and cluster memberships  #
-  #--------------------------------------------------------------#
-
-  py <- colSums(z) / n
-
-  if (d > 1) {
-
-    if (init_method %in% c('kmedoids', 'kmeans')) {
-      if (init_method == 'kmedoids') {
-        mu <- kmed$medoids
-      }
-
-      if (init_method == 'kmeans') {
-        mu <- km$centers
-      }
-    } else {
-      mu <- t(sapply(1:G, function(g) {
-        X_g <- X[clusters == g, ]
-        if (is.vector(X_g)) {
-          return(X_g)
-        }
-        return(colMeans(X_g))
-      }))
-    }
-
-    sigma <- sapply(1:G, function(g) {
-      X_g <- X[clusters == g, ]
-      if (is.vector(X_g)) {
-        return(matrix(0, nrow = d, ncol = d))
-      }
-      return(cov(X[clusters == g, ]))
-    }, simplify = 'array')
-
-    # rownames(mu) <- paste("cluster_", 1:G, sep = "")
+    mu <- kmed$medoids
   } else {
-    mu <- sapply(1:G, function(g) mean(X[clusters == g, ]))
-    sigma <- sapply(1:G, function(g) var(X[clusters == g, ]))
+    mu <- pars$mu
   }
 
-  # names(sigma) <- paste("cluster_", 1:G, sep = "")
+  Sigma <- pars$Sigma
 
-  return(list(z = z, clusters = clusters, pi = py, mu = mu, sigma = sigma))
+  #---------------------#
+  #    Prepare Output   #
+  #---------------------#
+
+  if (incomplete & G > 1) {
+    clusters <- NULL
+  }
+
+  output <- list(
+    pi       = pi,
+    mu       = mu,
+    Sigma    = Sigma,
+    clusters = clusters
+  )
+
+  return(output)
+
 }
+
+###########################################################################
+###                                                                     ###
+###                  Mean Imputation Based on Clusters                  ###
+###                                                                     ###
+###########################################################################
+
+#' Imputation using Cluster Means
+#'
+#' Replace missing values within each cluster with the corresponding cluster mean
+#' obtained by other observed values. In other words, a separate mean imputation
+#' is applied for every cluster.
+#'
+#' @param X An \eqn{n} x \eqn{d} matrix or data frame where \eqn{n} is the number of
+#'   observations and \eqn{d} is the number of columns or variables. Alternately,
+#'   \code{X} can be a vector of \eqn{n} observations.
+#' @param clusters A numeric vector containing cluster memberships. Every integer
+#'   from 1 to \code{G} must be present.
+#'
+#' @return A complete data matrix with missing values imputed accordingly.
+#'
+#' @examples
+#'
+#' X <- matrix(nrow = 6, ncol = 3, byrow = TRUE, c(
+#'   NA,  2,  2,
+#'    3, NA,  5,
+#'    4,  3,  2,
+#'   NA, NA,  3,
+#'    7,  2, NA,
+#'   NA,  4,  2
+#' ))
+#'
+#' cluster_impute(X, clusters = c(1, 1, 1, 2, 2, 2))
+#'
+#' @export
+cluster_impute <- function(
+    X,
+    clusters
+) {
+
+  #---------------------#
+  #    Input Checking   #
+  #---------------------#
+
+  if (is.data.frame(X)) {
+    X <- as.matrix(X)
+  }
+
+  if (!is.matrix(X)) {
+    X <- matrix(X, nrow = length(X), ncol = 1)
+  }
+
+  if (!is.numeric(X)) {
+    stop('X must be a numeric matrix, data frame or vector')
+  }
+
+  if (length(clusters) != nrow(X)) {
+    stop('clusters must match the number of observations')
+  }
+
+  if ( !is.vector(clusters) | !is.numeric(clusters) ) {
+    stop('clusters must be a numeric vector')
+  }
+
+  G <- max(clusters)
+
+  if (!all(clusters %in% 1:G)) {
+    stop('All cluster memberships 1:G must be present')
+  }
+
+  #-------------------------------#
+  #    Cluster Mean Imputation    #
+  #-------------------------------#
+
+  n <- nrow(X)
+  d <- ncol(X)
+
+  for (g in 1:G) {
+
+    Ig       <- clusters == g
+    centroid <- colMeans(X[Ig, , drop = FALSE], na.rm = TRUE)
+
+    for (h in 1:d) {
+      X[Ig, h][!complete.cases(X[Ig, h])] <- centroid[h]
+    }
+
+  }
+
+  return(X)
+
+}
+
+###########################################################################
+###                                                                     ###
+###                           Mean Imputation                           ###
+###                                                                     ###
+###########################################################################
+
+#' Mean Imputation
+#'
+#' Replace missing values of data set by the mean of other observed values.
+#'
+#' @param X An \eqn{n} x \eqn{d} matrix or data frame where \eqn{n} is the number of
+#'   observations and \eqn{d} is the number of columns or variables. Alternately,
+#'   \code{X} can be a vector of \eqn{n} observations.
+#'
+#' @return A complete data matrix with missing values imputed accordingly.
+#'
+#' @references
+#' Schafer, J. L. and Graham, J. W. (2002). Missing data: our view of the state of the art.
+#'   \emph{Psychological Methods}, 7(2):147–177.  \cr \cr
+#' Little, R. J. A. and Rubin, D. B. (2020). \emph{Statistical analysis with missing data}.
+#'   Wiley Series in Probability and Statistics. Wiley, Hoboken, NJ, 3rd edition
+#'
+#' @examples
+#'
+#' X <- matrix(nrow = 6, ncol = 3, byrow = TRUE, c(
+#'   NA,  2,  2,
+#'    3, NA,  5,
+#'    4,  3,  2,
+#'   NA, NA,  3,
+#'    7,  2, NA,
+#'   NA,  4,  2
+#' ))
+#'
+#' mean_impute(X)
+#'
+#' @export
+mean_impute <- function(X) {
+
+  #---------------------#
+  #    Input Checking   #
+  #---------------------#
+
+  if (is.data.frame(X)) {
+    X <- as.matrix(X)
+  }
+
+  if (!is.matrix(X)) {
+    X <- matrix(X, nrow = length(X), ncol = 1)
+  }
+
+  if (!is.numeric(X)) {
+    stop('X must be a numeric matrix, data frame or vector')
+  }
+
+  #-----------------------#
+  #    Mean Imputation    #
+  #-----------------------#
+
+  n <- nrow(X)
+  d <- ncol(X)
+
+  centroid <- colMeans(X, na.rm = TRUE)
+
+  for (h in 1:d) {
+    X[!complete.cases(X[, h]), h] <- centroid[h]
+  }
+
+  return(X)
+
+}
+
 
 ###################################################################
 ###                                                             ###
@@ -271,16 +549,17 @@ initialize_clusters <- function(
 #'
 #' @export
 hide_values <- function(
-  X,                # numeric data matrix or data frame
-  prop_cases = 0.1, # proportion of observations subject to missingness
-  n_cases = NULL    # number of observations with missing values; if specified, prop_cases is ignored
+    X,                # numeric data matrix or data frame
+    prop_cases = 0.1, # proportion of observations subject to missingness
+    n_cases = NULL    # number of observations with missing values; if specified, prop_cases is ignored
 ) {
+
   if (!is.matrix(X) & !is.data.frame(X)) {
     stop('X must be a matrix or data frame')
   }
 
-  n <- nrow(X) # number of observations
-  d <- ncol(X) # number of variables/dimensions
+  n <- nrow(X)
+  d <- ncol(X)
 
   if (n < 2) {
     stop('X must have at least 2 rows')
@@ -353,6 +632,7 @@ hide_values <- function(
 #'
 #' @export
 generate_patterns <- function(d) {
+
   if (d < 2) {
     stop('Number of variables must be at least 2')
   }
@@ -366,16 +646,17 @@ generate_patterns <- function(d) {
   matr <- matr[order(rowSums(matr), decreasing = F), ]
   matr <- matr[nrow(matr):1, ]
 
-  matr <- as.matrix(matr)
+  matr           <- as.matrix(matr)
   rownames(matr) <- NULL
   colnames(matr) <- NULL
 
   return(matr)
+
 }
 
 ############################################################################
 ###                                                                      ###
-###                    Evaluate Binary Classification                    ###
+###                   Binary Classification Evaluation                   ###
 ###                                                                      ###
 ############################################################################
 
@@ -384,8 +665,8 @@ generate_patterns <- function(d) {
 #' Evaluate the performance of a classification model by comparing its predicted
 #' labels to the true labels. Various metrics are returned to give an insight on
 #' how well the model classifies the observations. This function is added to aid
-#' outlier detection evaluation of MCNM, CNM, MtM, and tM in case that true
-#' outliers are known in advance.
+#' outlier detection evaluation of MCNM and MtM in case that true outliers are
+#' known in advance.
 #'
 #' @param true_labels An 0-1 or logical vector denoting the true labels. The
 #'   meaning of 0 and 1 (or TRUE and FALSE) is up to the user.
@@ -425,8 +706,8 @@ generate_patterns <- function(d) {
 #'
 #' @export
 evaluation_metrics <- function(
-  true_labels,        # a 0-1 or logical vector
-  pred_labels    # a 0-1 or logical vector
+    true_labels,   # a 0-1 or logical vector
+    pred_labels    # a 0-1 or logical vector
 ) {
 
   #----------------------#
@@ -500,7 +781,7 @@ evaluation_metrics <- function(
   err   <- 1 - acc                # error rate
   fdr   <- fp / (fp + tp)         # false discovery rate
 
-  outputs <- list(
+  output <- list(
     matr       = matr,
     TN         = tn,
     FP         = fp,
@@ -516,13 +797,13 @@ evaluation_metrics <- function(
     FDR        = fdr
   )
 
-  return(outputs)
+  return(output)
 }
 
 
 ############################################################################
 ###                                                                      ###
-###       Approximate the asymptotic maximum of the log-likelihood       ###
+###       Approximate the Asymptotic Maximum of the Log-Likelihood       ###
 ###                                                                      ###
 ############################################################################
 
@@ -547,4 +828,26 @@ getall <- function(loglik) {
   }
 
   return( val )
+}
+
+############################################################################
+###                                                                      ###
+###                       Trace of a Square Matrix                       ###
+###                                                                      ###
+############################################################################
+
+Tr <- function(X) {
+
+  if (!is.matrix(X)) {
+    stop('X must be a matrix')
+  }
+
+  if (nrow(X) != ncol(X)) {
+    stop('X must be a square matrix')
+  }
+
+  return(
+    sum(diag(X))
+  )
+
 }

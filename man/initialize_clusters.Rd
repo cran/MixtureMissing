@@ -2,46 +2,43 @@
 % Please edit documentation in R/utils.R
 \name{initialize_clusters}
 \alias{initialize_clusters}
-\title{Cluster Initialization}
+\title{Cluster Initialization using a Heuristic Method}
 \usage{
 initialize_clusters(
   X,
   G,
-  init_method = c("kmedoids", "kmeans", "hierarchical", "manual", "soft", "hard"),
-  manual_clusters = NULL
+  init_method = c("kmedoids", "kmeans", "hierarchical", "manual"),
+  clusters = NULL
 )
 }
 \arguments{
-\item{X}{An \eqn{n} by \eqn{d} matrix or data frame where \eqn{n} is the number of
+\item{X}{An \eqn{n} x \eqn{d} matrix or data frame where \eqn{n} is the number of
 observations and \eqn{d} is the number of columns or variables. Alternately,
 \code{X} can be a vector of \eqn{n} observations.}
 
-\item{G}{The number of clusters.}
+\item{G}{The number of clusters, which must be at least 1. If \code{G = 1}, then
+user-defined \code{clusters} is ignored.}
 
 \item{init_method}{(optional) A string specifying the method to initialize
 the EM algorithm. "kmedoids" clustering is used by default. Alternative
-methods include "kmeans", "hierarchical", "manual", "soft", "hard". When
-"manual" is chosen, a vector \code{manual_clusters} of length \eqn{n} must
-be specified.}
+methods include "kmeans", "hierarchical", "manual". When
+"manual" is chosen, a vector \code{clusters} of length \eqn{n} must
+be specified. When \code{G = 1} and "kmedoids" clustering is used, the medoid
+will be returned, not the sample mean.}
 
-\item{manual_clusters}{A vector of length \eqn{n} that specifies the initial
+\item{clusters}{A numeric vector of length \eqn{n} that specifies the initial
 cluster memberships of the user when \code{init_method} is set to "manual".
-Both numeric and character vectors are acceptable. This argument is NULL by
-default, so that it is ignored whenever other given initialization methods
-are chosen.}
+This argument is NULL by default, so that it is ignored whenever other given
+initialization methods are chosen.}
 }
 \value{
 A list with the following slots:
-  \item{z}{Mapping probabilities in the form of an \eqn{n} by \eqn{G} matrix.}
-  \item{clusters}{An numeric vector with values from 1 to \eqn{G} indicating
-    initial cluster memberships.}
   \item{pi}{Component mixing proportions.}
-  \item{mu}{If \code{X} is a matrix or data frame, \code{mu} is an \eqn{G} by \eqn{d}
-    matrix where each row is the component mean vector. If \code{X} is a vector, \code{mu}
-    is a vector of \eqn{G} component means.}
-  \item{sigma}{If \code{X} is a matrix or data frame, \code{sigma} is a \eqn{G}-dimensional
-    array where each \eqn{d} by \eqn{d} matrix is the component covariance matrix. If
-    \code{X} is a vector, \code{sigma} is a vector of \eqn{G} component variances.}
+  \item{mu}{A \eqn{G} by \eqn{d} matrix where each row is the component mean vector.}
+  \item{Sigma}{A \eqn{G}-dimensional array where each \eqn{d} by \eqn{d} matrix
+    is the component covariance matrix.}
+  \item{clusters}{An numeric vector with values from 1 to \eqn{G} indicating
+    initial cluster memberships if \code{X} is a complete data set; NULL otherwise.}
 }
 \description{
 Initialize cluster memberships and component parameters to start the EM algorithm
@@ -49,34 +46,29 @@ using a heuristic clustering method or user-defined labels.
 }
 \details{
 Available heuristic methods include k-medoids clustering, k-means clustering,
-  hierarchical clustering, soft and hard clustering. Alternately, the user can also
-  enter pre-specified cluster memberships, making other initialization methods possible.
-
-
+  and hierarchical clustering. Alternately, the user can also enter pre-specified
+  cluster memberships, making other initialization methods possible. If the given
+  data set contains missing values, only observations with complete records will
+  be used to initialize clusters. However, in this case, except when \code{G = 1}, the resulting cluster
+  memberships will be set to \code{NULL} since they represent those complete records
+  rather than the original data set as a whole.
 }
 \examples{
 
 #++++ Initialization using a heuristic method ++++#
 
-set.seed(1234)
-
-init <- initialize_clusters(iris[1:4], G = 3)
-init <- initialize_clusters(iris[1:4], G = 3, init_method = 'kmeans')
-init <- initialize_clusters(iris[1:4], G = 3, init_method = 'hierarchical')
-init <- initialize_clusters(iris[1:4], G = 3, init_method = 'soft')
-init <- initialize_clusters(iris[1:4], G = 3, init_method = 'hard')
 
 #++++ Initialization using user-defined labels ++++#
 
 init <- initialize_clusters(iris[1:4], G = 3, init_method = 'manual',
-                            manual_clusters = iris$Species)
+                            clusters = as.numeric(iris$Species))
 
 #++++ Initial parameters and pairwise scatterplot showing the mapping ++++#
 
-init$z
 init$pi
 init$mu
-init$sigma
+init$Sigma
+init$clusters
 
 pairs(iris[1:4], col = init$clusters, pch = 16)
 

@@ -20,7 +20,7 @@ Summarizes main information regarding a \code{MixtureMissing} object.
 \details{
 Information includes the model used to fit the data set, initialization
   method, clustering table, total outliers, outliers per cluster, mixing proportions,
-  component means and variances.
+  component means and variances, final log-likelihood value, information criteria.
 }
 \examples{
 

@@ -33,8 +33,8 @@ A list with the following slots:
 Evaluate the performance of a classification model by comparing its predicted
 labels to the true labels. Various metrics are returned to give an insight on
 how well the model classifies the observations. This function is added to aid
-outlier detection evaluation of MCNM, CNM, MtM, and tM in case that true
-outliers are known in advance.
+outlier detection evaluation of MCNM and MtM in case that true outliers are
+known in advance.
 }
 \examples{
 

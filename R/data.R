@@ -46,6 +46,23 @@
 #' \url{https://archive.ics.uci.edu/ml/datasets/automobile}
 "auto"
 
+#' Bankruptcy Data Set
+#'
+#' The data set contain the ratio of retained earnings (RE) to total assets, and
+#' the ratio of earnings before interests and taxes (EBIT) to total assets of 66
+#' American firms recorded in the form of ratios. Half of the selected firms had
+#' filed for bankruptcy.
+#'
+#' @format A data frame with 66 rows and 3 variables:
+#' \describe{
+#'   \item{Y}{Status of the firm: 0 for bankruptcy and 1 for financially sound.}
+#'   \item{RE}{Ratio of retained earnings.}
+#'   \item{EBIT}{ratio of earnings before interests and taxes.}
+#' }
+#' @source Altman E.I. (1968). Financial ratios, discriminant analysis and the prediction of corporate bankruptcy. \emph{J Finance} 23(4): 589-609
+#' \url{https://www.jstor.org/stable/2978933}
+"bankruptcy"
+
 #' A Mixture of Two Far Student's \eqn{t} Distributions - 500 Observations
 #'
 #' A simulated mixture of two far Student's \eqn{t} distributions. Refer to Punzo

@@ -118,7 +118,7 @@ plot.MixtureMissing <- function(x, ...) {
 #'
 #' @details Information includes the model used to fit the data set, initialization
 #'   method, clustering table, total outliers, outliers per cluster, mixing proportions,
-#'   component means and variances.
+#'   component means and variances, final log-likelihood value, information criteria.
 #'
 #' @examples
 #'
@@ -144,13 +144,25 @@ summary.MixtureMissing <- function(object, ...) {
 
   cat('\nModel:', object$model)
 
-  if (object$model %in% c('MCNM_incomplete_data', 'MtM_incomplete_data', 'MNM_incomplete_data')) {
+  if (object$model %in% c('MCNM_incomplete_data', 'MtM_incomplete_data', 'MNM_incomplete_data', 'MGHM_incomplete_data')) {
     cat('\nNumber of observations with missing values:', sum(!object$complete), '/', nrow(object$data))
   }
 
   cat('\nIterations:', object$iter_stop, '/', object$max_iter)
 
-  cat('\nInitialization method:', object$init_method)
+  G <- length(object$pi)
+
+  if (G == 1) {
+    cat('\n\nInitialization method: None')
+  } else {
+    cat('\n\nInitialization method:', object$init_method)
+
+    if (object$init_method %in% c('emEM', 'RndEM')) {
+      cat('\nNumber of runs:', object$n_run)
+      cat('\nShort EM iterations:', object$n_short)
+    }
+  }
+
 
   cat("\n\nClustering table:")
   print(table(object$clusters))
@@ -168,7 +180,10 @@ summary.MixtureMissing <- function(object, ...) {
   print(object$mu)
 
   cat('\nComponent variances:\n')
-  print(object$sigma)
+  print(object$Sigma)
+
+  cat('\nFinal Log-Likelihood:\n')
+  print(object$final_loglik)
 
   cat('\nInformation Criteria:\n')
   print(

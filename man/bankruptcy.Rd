@@ -9,7 +9,7 @@ A data frame with 66 rows and 3 variables:
 \describe{
   \item{Y}{Status of the firm: 0 for bankruptcy and 1 for financially sound.}
   \item{RE}{Ratio of retained earnings.}
-  \item{EBIT}{ratio of earnings before interests and taxes.}
+  \item{EBIT}{Ratio of earnings before interests and taxes.}
 }
 }
 \source{
@@ -20,7 +20,7 @@ Altman E.I. (1968). Financial ratios, discriminant analysis and the prediction o
 bankruptcy
 }
 \description{
-The data set contain the ratio of retained earnings (RE) to total assets, and
+The data set contains the ratio of retained earnings (RE) to total assets, and
 the ratio of earnings before interests and taxes (EBIT) to total assets of 66
 American firms recorded in the form of ratios. Half of the selected firms had
 filed for bankruptcy.

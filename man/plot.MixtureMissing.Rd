@@ -18,24 +18,22 @@ No return value, called to visualize the fitted model's results
 Provide a parallel plot of up to the first 10 variables of a multivariate
 data sets, and a line plot showing log-likelihood values at every iteration
 during the EM algorithm. When applicable, pairwise scatter plots highlighting
-outliers and/or observations whose values are missing but are replaced by
+outliers denoted by triangles and/or observations whose values are missing but are replaced by
 expectations obtained in the EM algorithm will be included.
 }
 \examples{
 
-data('nm_5_noise_close_100')
+data('auto')
 
 #++++ With no missing values ++++#
 
-X <- nm_5_noise_close_100[, 1:2]
+X <- auto[, c('engine_size', 'city_mpg', 'highway_mpg')]
 mod <- MCNM(X, G = 2, init_method = 'kmedoids', max_iter = 10)
 plot(mod)
 
 #++++ With missing values ++++#
 
-set.seed(1234)
-
-X <- hide_values(nm_5_noise_close_100[, 1:2], prop_cases = 0.1)
+X <- auto[, c('normalized_losses', 'horsepower', 'highway_mpg', 'price')]
 mod <- MCNM(X, G = 2, init_method = 'kmedoids', max_iter = 10)
 plot(mod)
 

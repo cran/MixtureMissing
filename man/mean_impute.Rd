@@ -28,6 +28,7 @@ X <- matrix(nrow = 6, ncol = 3, byrow = TRUE, c(
   NA,  4,  2
 ))
 
+
 mean_impute(X)
 
 }

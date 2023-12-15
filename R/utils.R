@@ -277,7 +277,7 @@ initialize_clusters <- function(
     #---------------#
 
     if (init_method == 'kmeans') {
-      km       <- kmeans(X, G)
+      km       <- kmeans(X, G, nstart = 10)
       clusters <- km$cluster
     }
 
@@ -349,97 +349,6 @@ initialize_clusters <- function(
 
 ###########################################################################
 ###                                                                     ###
-###                  Mean Imputation Based on Clusters                  ###
-###                                                                     ###
-###########################################################################
-
-#' Imputation using Cluster Means
-#'
-#' Replace missing values within each cluster with the corresponding cluster mean
-#' obtained by other observed values. In other words, a separate mean imputation
-#' is applied for every cluster.
-#'
-#' @param X An \eqn{n} x \eqn{d} matrix or data frame where \eqn{n} is the number of
-#'   observations and \eqn{d} is the number of columns or variables. Alternately,
-#'   \code{X} can be a vector of \eqn{n} observations.
-#' @param clusters A numeric vector containing cluster memberships. Every integer
-#'   from 1 to \code{G} must be present.
-#'
-#' @return A complete data matrix with missing values imputed accordingly.
-#'
-#' @examples
-#'
-#' X <- matrix(nrow = 6, ncol = 3, byrow = TRUE, c(
-#'   NA,  2,  2,
-#'    3, NA,  5,
-#'    4,  3,  2,
-#'   NA, NA,  3,
-#'    7,  2, NA,
-#'   NA,  4,  2
-#' ))
-#'
-#' cluster_impute(X, clusters = c(1, 1, 1, 2, 2, 2))
-#'
-#' @export
-cluster_impute <- function(
-    X,
-    clusters
-) {
-
-  #---------------------#
-  #    Input Checking   #
-  #---------------------#
-
-  if (is.data.frame(X)) {
-    X <- as.matrix(X)
-  }
-
-  if (!is.matrix(X)) {
-    X <- matrix(X, nrow = length(X), ncol = 1)
-  }
-
-  if (!is.numeric(X)) {
-    stop('X must be a numeric matrix, data frame or vector')
-  }
-
-  if (length(clusters) != nrow(X)) {
-    stop('clusters must match the number of observations')
-  }
-
-  if ( !is.vector(clusters) | !is.numeric(clusters) ) {
-    stop('clusters must be a numeric vector')
-  }
-
-  G <- max(clusters)
-
-  if (!all(clusters %in% 1:G)) {
-    stop('All cluster memberships 1:G must be present')
-  }
-
-  #-------------------------------#
-  #    Cluster Mean Imputation    #
-  #-------------------------------#
-
-  n <- nrow(X)
-  d <- ncol(X)
-
-  for (g in 1:G) {
-
-    Ig       <- clusters == g
-    centroid <- colMeans(X[Ig, , drop = FALSE], na.rm = TRUE)
-
-    for (h in 1:d) {
-      X[Ig, h][!complete.cases(X[Ig, h])] <- centroid[h]
-    }
-
-  }
-
-  return(X)
-
-}
-
-###########################################################################
-###                                                                     ###
 ###                           Mean Imputation                           ###
 ###                                                                     ###
 ###########################################################################
@@ -470,6 +379,7 @@ cluster_impute <- function(
 #'    7,  2, NA,
 #'   NA,  4,  2
 #' ))
+#'
 #'
 #' mean_impute(X)
 #'

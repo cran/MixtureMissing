@@ -9,16 +9,10 @@ MCNM(
   G,
   max_iter = 20,
   epsilon = 0.01,
-  init_method = c("kmedoids", "kmeans", "hierarchical", "manual", "emEM", "RndEM"),
+  init_method = c("kmedoids", "kmeans", "hierarchical", "manual"),
   clusters = NULL,
-  impute = FALSE,
-  equal_prop = FALSE,
-  identity_cov = FALSE,
   eta_min = 1.001,
-  progress = TRUE,
-  n_run = 100,
-  n_short = NULL,
-  short_eps = 0.1
+  progress = TRUE
 )
 }
 \arguments{
@@ -36,55 +30,27 @@ Aitken-based stopping criterion used in the EM algorithm: 0.01 by default.}
 
 \item{init_method}{(optional) A string specifying the method to initialize
 the EM algorithm. "kmedoids" clustering is used by default. Alternative
-methods include "kmeans", "hierarchical", "manual", "emEM",
-and "RndEM". When "manual" is chosen, a vector \code{clusters} of
-length \eqn{n} must be specified.}
+methods include "kmeans", "hierarchical", and "manual". When "manual" is chosen,
+a vector \code{clusters} of length \eqn{n} must be specified. If the data set is
+incomplete, missing values will be first filled based on the mean imputation method.}
 
 \item{clusters}{(optional) A numeric vector of length \eqn{n} that specifies the initial
 cluster memberships of the user when \code{init_method} is set to "manual".
 This argument is NULL by default, so that it is ignored whenever other given
 initialization methods are chosen.}
 
-\item{impute}{(optional) A logical value indicating whether missing values should
-be imputed for initialization. It is FALSE by default, in which only complete
-observations are used for obtaining initial parameters. When it is TRUE, imputation
-varies depending on the initialization method selected. For "emEM" and "RndEM",
-after observations are randomly assigned cluster memberships, missing values
-are replaced by the corresponding cluster means. For other heuristic methods,
-mean imputation is applied on the whole data set as a pre-processing step.}
-
-\item{equal_prop}{(optional) A logical value indicating whether mixing
-proportions should be equal when initialized with emEM or RndEM; FALSE by
-default.}
-
-\item{identity_cov}{(optional) A logical value indicating whether covariance
-matrices should be set to identity matrices when initialized with emEM or RndEM;
-FALSE by default.}
-
 \item{eta_min}{(optional) A numeric value close to 1 to the right specifying
 the minimum value of eta; 1.001 by default.}
 
 \item{progress}{(optional) A logical value indicating whether the
 fitting progress should be displayed; TRUE by default.}
-
-\item{n_run}{(optional) Number of random sets to consider for initialization
-if \code{init_method = "emEM"} or \code{init_method = "RndEM"}; 100 by default.}
-
-\item{n_short}{(optional) Number of iterations in each run of the short EM
-phase if \code{init_method = "emEM"}. It is ignored when another initialization
-method is used. When \code{init_method = "emEM"}, emEM reduces to RndEM. It is
-NULL by default.}
-
-\item{short_eps}{(optional) The epsilon value for the Aitken-based stopping criterion
-used the short EM phase. The value is ignored if \code{n_short} is specified (not NULL).
-By default, it is 0.1.}
 }
 \value{
 An object of class \code{MixtureMissing} with:
-  \item{model}{The model used to fit the data set}
+  \item{model}{The model used to fit the data set.}
   \item{pi}{Mixing proportions.}
-  \item{mu}{Component mean vectors.}
-  \item{Sigma}{Component covariance matrices.}
+  \item{mu}{Component mean vectors (location).}
+  \item{Sigma}{Component covariance matrices (dispersion).}
   \item{alpha}{Component proportions of good observations.}
   \item{eta}{Component degrees of contamination.}
   \item{z_tilde}{An \eqn{n} by \eqn{G} matrix where each row indicates the expected
@@ -94,7 +60,7 @@ An object of class \code{MixtureMissing} with:
     to each cluster.}
   \item{clusters}{A numeric vector of length \eqn{n} indicating cluster
     memberships determined by the model.}
-  \item{outliers}{A logical vector of length \eqn{n} indicating observations that are ouliers.}
+  \item{outliers}{A logical vector of length \eqn{n} indicating observations that are outliers.}
   \item{data}{The original data set if it is complete; otherwise, this is
     the data set with missing values imputed by appropriate expectations.}
   \item{complete}{A logical vector of length \eqn{n} indicating which observation(s)
@@ -112,14 +78,11 @@ An object of class \code{MixtureMissing} with:
   \item{AIC3}{Modified AIC.}
   \item{CAIC}{Bozdogan's consistent AIC.}
   \item{AICc}{Small-sample version of AIC.}
-  \item{ent}{Entropy}
+  \item{ent}{Entropy.}
   \item{ICL}{Integrated Completed Likelihood criterion.}
   \item{AWE}{Approximate weight of evidence.}
   \item{CLC}{Classification likelihood criterion.}
   \item{init_method}{The initialization method used in model fitting.}
-  \item{n_run}{Number of random sets considered for initialization if emEM or RndEM is used.}
-  \item{n_short}{Number of iterations used in each run of the short EM phase.}
-  \item{short_eps}{The epsilon value for the Aitken-based stopping criterion used the short EM phase.}
 }
 \description{
 Carries out model-based clustering using a multivariate contaminated normal
@@ -130,11 +93,11 @@ be missing at random (MAR).
 }
 \examples{
 
-data('nm_5_noise_close_100')
+data('auto')
 
 #++++ With no missing values ++++#
 
-X <- nm_5_noise_close_100[, 1:2]
+X <- auto[, c('engine_size', 'city_mpg', 'highway_mpg')]
 mod <- MCNM(X, G = 2, init_method = 'kmedoids', max_iter = 10)
 
 summary(mod)
@@ -142,9 +105,7 @@ plot(mod)
 
 #++++ With missing values ++++#
 
-set.seed(1234)
-
-X <- hide_values(nm_5_noise_close_100[, 1:2], prop_cases = 0.1)
+X <- auto[, c('normalized_losses', 'horsepower', 'highway_mpg', 'price')]
 mod <- MCNM(X, G = 2, init_method = 'kmedoids', max_iter = 10)
 
 summary(mod)

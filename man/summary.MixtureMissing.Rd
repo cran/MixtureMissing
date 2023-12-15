@@ -24,19 +24,15 @@ Information includes the model used to fit the data set, initialization
 }
 \examples{
 
-data('nm_5_noise_close_100')
-
 #++++ With no missing values ++++#
 
-# X <- nm_5_noise_close_100[, 1:2]
-# mod <- MCNM(X, G = 2, init_method = 'kmedoids', max_iter = 10)
+X <- auto[, c('horsepower', 'highway_mpg', 'price')]
+mod <- MCNM(X, G = 2, init_method = 'kmedoids', max_iter = 10)
 # summary(mod)
 
 #++++ With missing values ++++#
 
-set.seed(1234)
-
-X <- hide_values(nm_5_noise_close_100[, 1:2], prop_cases = 0.1)
+X <- auto[, c('normalized_losses', 'horsepower', 'highway_mpg', 'price')]
 mod <- MCNM(X, G = 2, init_method = 'kmedoids', max_iter = 10)
 summary(mod)
 

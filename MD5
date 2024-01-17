@@ -1,8 +1,8 @@
-4ce0248f88f5254a401df2dacdf6b192 *DESCRIPTION
+b6b39e623b81a894c3f49afc331d4837 *DESCRIPTION
 3d3fffb2015c2ad16de0749ef1cd5891 *NAMESPACE
-881cc081f97810b1e90ce6a0ef8573e3 *R/MCNM.R
-6050546f8b7badd50a7a9c243b3dab36 *R/MGHM.R
-c2d2e6262c942bcac1cd53c06b6ed23e *R/MixtureMissing.R
+91c50b1816db07084fa76d13c7ce0f87 *R/MCNM.R
+f095c74fe25d33e47d4b4e7aa95c60d4 *R/MGHM.R
+5eb60dd2ad297957a16f2006765a9c89 *R/MixtureMissing.R
 d8111de15fb9c1ad8af73b00d6d1e632 *R/data.R
 b08b0cef5763d2af55ba3d4812d7a1f1 *R/dist_Cauchy.R
 3297dc31a034521e8f52d688ce5bfe3c *R/dist_Hyp.R
@@ -15,7 +15,7 @@ bf481d07dd3f079b610e8409154933fb *R/dist_Hyp_Uni_Marg.R
 dab8334e5b9209736934a33080c24c26 *R/dist_Sym_Hyp.R
 e03d5377dc8cb038f0529c0808b7f67d *R/dist_Sym_Norm_Inv_Gauss.R
 c1d8183df5328ccfa1c3ee824150d784 *R/dist_t.R
-4be8da886001c37bf5ef7fcd8fb72891 *R/select_mixture.R
+1b6aebe39b16b52596e0f7946a2457f1 *R/select_mixture.R
 75d98f68c8360456c4d1a356bf0c43e3 *R/utils.R
 bb096135249e9bd1edec84475ec21693 *data/UScost.rda
 3c3cab4c0e55d2be14164c0482bcd5d0 *data/auto.rda

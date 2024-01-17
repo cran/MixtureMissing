@@ -37,8 +37,8 @@
 #' @return An object of class \code{MixtureMissing} with:
 #'   \item{model}{The model used to fit the data set.}
 #'   \item{pi}{Mixing proportions.}
-#'   \item{mu}{Component mean vectors (location).}
-#'   \item{Sigma}{Component covariance matrices (dispersion).}
+#'   \item{mu}{Component location vectors.}
+#'   \item{Sigma}{Component dispersion matrices.}
 #'   \item{alpha}{Component proportions of good observations.}
 #'   \item{eta}{Component degrees of contamination.}
 #'   \item{z_tilde}{An \eqn{n} by \eqn{G} matrix where each row indicates the expected

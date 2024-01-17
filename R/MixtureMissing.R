@@ -188,8 +188,6 @@ summary.MixtureMissing <- function(object, ...) {
 
   cat('\nIterations:', object$iter_stop, '/', object$max_iter)
 
-
-
   if (G == 1) {
     cat('\n\nInitialization: None')
   } else {
@@ -224,10 +222,10 @@ summary.MixtureMissing <- function(object, ...) {
   cat('\nMixing proportions:\n')
   print(object$pi)
 
-  cat('\nComponent means:\n')
+  cat('\nComponent location vectors:\n')
   print(object$mu)
 
-  cat('\nComponent variances:\n')
+  cat('\nComponent dispersion matrices:\n')
   print(object$Sigma)
 
   cat('\nFinal log-likelihood:', object$final_loglik, '\n')

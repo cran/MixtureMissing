@@ -61,8 +61,8 @@
 #' @return An object of class \code{MixtureMissing} with:
 #'   \item{model}{The model used to fit the data set.}
 #'   \item{pi}{Mixing proportions.}
-#'   \item{mu}{Component mean vectors (location).}
-#'   \item{Sigma}{Component covariance matrices (dispersion).}
+#'   \item{mu}{Component location vectors.}
+#'   \item{Sigma}{Component dispersion matrices.}
 #'   \item{beta}{Component skewness vectors. Only available if \code{model} is GH, NIG, SNIG, SC, SGH, HUM, H, or SH; NULL otherwise.}
 #'   \item{lambda}{Component index parameters. Only available if \code{model} is GH, NIG, SNIG, SGH, HUM, H, or SH; NULL otherwise.}
 #'   \item{omega}{Component concentration parameters. Only available if \code{model} is GH, NIG, SNIG, SGH, HUM, H, or SH; NULL otherwise.}

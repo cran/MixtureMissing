@@ -2,12 +2,13 @@
 % Please edit documentation in R/MixtureMissing.R
 \name{summary.MixtureMissing}
 \alias{summary.MixtureMissing}
-\title{Summary for Mixture Missing}
+\title{Summary for MixtureMissing}
 \usage{
 \method{summary}{MixtureMissing}(object, ...)
 }
 \arguments{
-\item{object}{A \code{MixtureMissing} object.}
+\item{object}{A \code{MixtureMissing} object or an output of \link[MixtureMissing]{select_mixture}.
+In the latter, only the best model will be considered.}
 
 \item{...}{Arguments to be passed to methods, such as graphical parameters.}
 }
@@ -28,7 +29,7 @@ Information includes the model used to fit the data set, initialization
 
 X <- auto[, c('horsepower', 'highway_mpg', 'price')]
 mod <- MCNM(X, G = 2, init_method = 'kmedoids', max_iter = 10)
-# summary(mod)
+summary(mod)
 
 #++++ With missing values ++++#
 

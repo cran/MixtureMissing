@@ -7,9 +7,10 @@
 MtM_incomplete_data <- function(
     X,
     G,
+    model          = c('t', 'C'),
     max_iter       = 20,
     epsilon        = 0.01,
-    init_method    = c("kmedoids", "kmeans", "hierarchical", "manual"),
+    init_method    = c("kmedoids", "kmeans", "hierarchical", "mclust", "manual"),
     clusters       = NULL,
     outlier_cutoff = 0.95,
     progress       = TRUE
@@ -19,8 +20,12 @@ MtM_incomplete_data <- function(
   #    Input Checking    #
   #----------------------#
 
-  if (outlier_cutoff <= 0 | outlier_cutoff >= 1) {
-    stop('outlier_cutoff must be in (0, 1)')
+  model <- match.arg(model)
+
+  if (model == 't') {
+    if (outlier_cutoff <= 0 | outlier_cutoff >= 1) {
+      stop('outlier_cutoff must be in (0, 1)')
+    }
   }
 
   #------------------------------------#
@@ -41,31 +46,34 @@ MtM_incomplete_data <- function(
     Im[[j]] <- which( apply(R, 1, function(r) all(r == M[j, ]) ) )
   }
 
-  z           <- matrix(NA, nrow = n, ncol = G)
-  z_tilde     <- matrix(NA, nrow = n, ncol = G)
-  w_tilde     <- matrix(NA, nrow = n, ncol = G)
-  zw_tilde    <- matrix(NA, nrow = n, ncol = G)
+  z           <- matrix(NA_real_, nrow = n, ncol = G)
+  z_tilde     <- matrix(NA_real_, nrow = n, ncol = G)
+  w_tilde     <- matrix(NA_real_, nrow = n, ncol = G)
+  zw_tilde    <- matrix(NA_real_, nrow = n, ncol = G)
   X_tilde     <- array(rep(X, G), dim = c(n, d, G))
-  Sigma_tilde <- array(NA, dim = c(d, d, n, G))
+  Sigma_tilde <- array(NA_real_, dim = c(d, d, n, G))
 
-  py    <- rep(NA, G)
-  mu    <- matrix(NA, nrow = G, ncol = d)
-  Sigma <- array(NA, dim = c(d, d, G))
-  df    <- rep(10, G)
+  py    <- rep(NA_real_, G)
+  mu    <- matrix(NA_real_, nrow = G, ncol = d)
+  Sigma <- array(NA_real_, dim = c(d, d, G))
 
-  dens   <- matrix(NA, nrow = n, ncol = G)
-  iter   <- 0
-  loglik <- NULL
+  if (model == 't') {
+    df <- rep(10, G)
+  }
+
+  if (model == 'C') {
+    df <- rep(1, G)
+  }
+
+  log_dens <- matrix(NA_real_, nrow = n, ncol = G)
+  iter     <- 0
+  loglik   <- NULL
 
   #--------------------------------#
   #    Parameter Initialization    #
   #--------------------------------#
 
   init_method <- match.arg(init_method)
-
-  if (progress) {
-    cat('\nInitialization:', init_method, '\n')
-  }
 
   X_imp <- mean_impute(X)
 
@@ -236,21 +244,27 @@ MtM_incomplete_data <- function(
 
       #++++ M-step: Degrees of Freedom ++++#
 
-      root <- tryCatch({
+      if (model == 't') {
+        root <- tryCatch({
 
-        uniroot(function(a) {
+          uniroot(function(a) {
 
-          A <- -digamma(a / 2) + log(a / 2) + 1
-          B <-  sum( z_tilde[, g] * (log(w_tilde[, g]) - w_tilde[, g]) ) / N[g]
-          C <-  sum( z_tilde[, g] * (digamma((df[g] + do) / 2) - log((df[g] + do) / 2)) ) / N[g]
+            A <- -digamma(a / 2) + log(a / 2) + 1
+            B <-  sum( z_tilde[, g] * (log(w_tilde[, g]) - w_tilde[, g]) ) / N[g]
+            C <-  sum( z_tilde[, g] * (digamma((df[g] + do) / 2) - log((df[g] + do) / 2)) ) / N[g]
 
-          return(A + B + C)
+            return(A + B + C)
 
-        }, lower = 0.001, upper = 200)$root
+          }, lower = 0.001, upper = 200)$root
 
-      }, error = function(e) return(NULL))
+        }, error = function(e) return(NULL))
 
-      df[g] <- ifelse(!is.null(root), root, df[g])
+        df[g] <- ifelse(!is.null(root), root, df[g])
+      }
+
+      if (model == 'C') {
+        df[g] <- 1
+      }
 
     }
 
@@ -266,15 +280,14 @@ MtM_incomplete_data <- function(
         mu_o     <- mu[g, o]
         Sigma_oo <- Sigma[o, o, g]
 
-        dens[Im[[j]], g] <- mvtnorm::dmvt(Xo_j, delta = mu_o, sigma = as.matrix(Sigma_oo), df = df[g], log = FALSE)
+        log_dens[Im[[j]], g] <- mvtnorm::dmvt(Xo_j, delta = mu_o, sigma = as.matrix(Sigma_oo), df = df[g], log = TRUE)
 
       }
     }
 
-    lik                   <- dens %*% py
-    lik[lik <= 10^(-323)] <- 10^(-323)
-    final_loglik          <- sum(log(lik))
-    loglik                <- c(loglik, final_loglik)
+    log_py_dens  <- sweep(log_dens, 2, log(py), FUN = '+')
+    final_loglik <- sum( apply(log_py_dens, 1, log_sum_exp) )
+    loglik       <- c(loglik, final_loglik)
 
     #++++ Update Progress ++++#
 
@@ -314,15 +327,21 @@ MtM_incomplete_data <- function(
   #    Outlier Detection    #
   #-------------------------#
 
-  delta <- matrix(NA, nrow = n, ncol = G)
+  if (model == 't') {
+    delta <- matrix(NA_real_, nrow = n, ncol = G)
 
-  for (g in 1:G) {
-    delta[, g] <- mahalanobis(X_imputed, center = mu[g, ], cov = Sigma[, , g], tol = 1e-20)
+    for (g in 1:G) {
+      delta[, g] <- mahalanobis(X_imputed, center = mu[g, ], cov = Sigma[, , g], tol = 1e-20)
+    }
+
+    cluster_matr <- clusters_to_matrix(clusters, G)
+    delta        <- rowSums(delta * cluster_matr)
+    outliers     <- 1 - pchisq(delta, df = d) < 1 - outlier_cutoff
   }
 
-  cluster_matr <- clusters_to_matrix(clusters, G)
-  delta        <- rowSums(delta * cluster_matr)
-  outliers     <- 1 - pchisq(delta, df = d) < 1 - outlier_cutoff
+  if (model == 'C') {
+    outliers <- NULL
+  }
 
   #------------------------#
   #  Number of parameters  #
@@ -334,6 +353,11 @@ MtM_incomplete_data <- function(
     Sigma = G * d * (d + 1) / 2,
     df    = G
   )
+
+  if (model == 'C') {
+    npar$df <- NULL
+  }
+
   npar$total <- Reduce('+', npar)
 
   #----------------------------#
@@ -378,8 +402,8 @@ MtM_incomplete_data <- function(
     Sigma <- Sigma[, , 1]
   }
 
-  outputs <- list(
-    model         = 't_incomplete_data',
+  output <- list(
+    model         = paste(model, '_incomplete_data', sep = ''),
     pi            = py,
     mu            = mu,
     Sigma         = Sigma,
@@ -388,7 +412,7 @@ MtM_incomplete_data <- function(
     clusters      = clusters,
     outliers      = outliers,
     data          = X_imputed,
-    complete      = complete,
+    complete      = !is.na(X),
     npar          = npar,
     max_iter      = max_iter,
     iter_stop     = iter,
@@ -407,9 +431,15 @@ MtM_incomplete_data <- function(
     CLC           = CLC,
     init_method   = init_method
   )
-  class(outputs) <- 'MixtureMissing'
 
-  return(outputs)
+  if (model == 'C') {
+    output$df       <- NULL
+    output$outliers <- NULL
+  }
+
+  class(output) <- 'MixtureMissing'
+
+  return(output)
 
 }
 
@@ -422,9 +452,10 @@ MtM_incomplete_data <- function(
 MtM_complete_data <- function(
     X,
     G,
+    model          = c('t', 'C'),
     max_iter       = 20,
     epsilon        = 0.01,
-    init_method    = c("kmedoids", "kmeans", "hierarchical", "manual"),
+    init_method    = c("kmedoids", "kmeans", "hierarchical", "mclust", "manual"),
     clusters       = NULL,
     equal_prop     = FALSE,
     identity_cov   = FALSE,
@@ -436,8 +467,12 @@ MtM_complete_data <- function(
   #    Input Checking    #
   #----------------------#
 
-  if (outlier_cutoff <= 0 | outlier_cutoff >= 1) {
-    stop('outlier_cutoff must be in (0, 1)')
+  model <- match.arg(model)
+
+  if (model == 't') {
+    if (outlier_cutoff <= 0 | outlier_cutoff >= 1) {
+      stop('outlier_cutoff must be in (0, 1)')
+    }
   }
 
   #------------------------------------#
@@ -447,30 +482,33 @@ MtM_complete_data <- function(
   n <- nrow(X)
   d <- ncol(X)
 
-  z           <- matrix(NA, nrow = n, ncol = G)
-  z_tilde     <- matrix(NA, nrow = n, ncol = G)
-  w_tilde     <- matrix(NA, nrow = n, ncol = G)
-  zw_tilde    <- matrix(NA, nrow = n, ncol = G)
-  Sigma_tilde <- array(NA, dim = c(d, d, n, G))
+  z           <- matrix(NA_real_, nrow = n, ncol = G)
+  z_tilde     <- matrix(NA_real_, nrow = n, ncol = G)
+  w_tilde     <- matrix(NA_real_, nrow = n, ncol = G)
+  zw_tilde    <- matrix(NA_real_, nrow = n, ncol = G)
+  Sigma_tilde <- array(NA_real_, dim = c(d, d, n, G))
 
-  py    <- rep(NA, G)
-  mu    <- matrix(NA, nrow = G, ncol = d)
-  Sigma <- array(NA, dim = c(d, d, G))
-  df    <- rep(10, G)
+  py    <- rep(NA_real_, G)
+  mu    <- matrix(NA_real_, nrow = G, ncol = d)
+  Sigma <- array(NA_real_, dim = c(d, d, G))
 
-  dens   <- matrix(NA, nrow = n, ncol = G)
-  iter   <- 0
-  loglik <- NULL
+  if (model == 't') {
+    df <- rep(10, G)
+  }
+
+  if (model == 'C') {
+    df <- rep(1, G)
+  }
+
+  log_dens <- matrix(NA_real_, nrow = n, ncol = G)
+  iter     <- 0
+  loglik   <- NULL
 
   #--------------------------------#
   #    Parameter Initialization    #
   #--------------------------------#
 
   init_method <- match.arg(init_method)
-
-  if (progress) {
-    cat('\nInitialization:', init_method, '\n')
-  }
 
   if (G == 1) {
 
@@ -561,34 +599,39 @@ MtM_complete_data <- function(
 
       #++++ M-step: Degree of Freedom ++++#
 
-      root <- tryCatch({
+      if (model == 't') {
+        root <- tryCatch({
 
-        uniroot(function(a) {
+          uniroot(function(a) {
 
-          A <- -digamma(a / 2) + log(a / 2) + 1
-          B <-  sum(z_tilde[, g] * (log(w_tilde[, g]) - w_tilde[, g])) / N[g]
-          C <-  digamma((df[g] + d) / 2) - log((df[g] + d) / 2)
+            A <- -digamma(a / 2) + log(a / 2) + 1
+            B <-  sum(z_tilde[, g] * (log(w_tilde[, g]) - w_tilde[, g])) / N[g]
+            C <-  digamma((df[g] + d) / 2) - log((df[g] + d) / 2)
 
-          return(A + B + C)
+            return(A + B + C)
 
-        }, lower = 2, upper = 200)$root
+          }, lower = 2, upper = 200)$root
 
-      }, error = function(e) return(NULL))
+        }, error = function(e) return(NULL))
 
-      df[g] <- ifelse(!is.null(root), root, df[g])
+        df[g] <- ifelse(!is.null(root), root, df[g])
+      }
+
+      if (model == 'C') {
+        df[g] <- 1
+      }
 
     }
 
     #++++ Observed Log-likelihood ++++#
 
     for (g in 1:G) {
-      dens[, g] <- mvtnorm::dmvt(X, delta = mu[g, ], sigma = as.matrix(Sigma[, , g]), df = df[g], log = FALSE)
+      log_dens[, g] <- mvtnorm::dmvt(X, delta = mu[g, ], sigma = as.matrix(Sigma[, , g]), df = df[g], log = TRUE)
     }
 
-    lik                   <- dens %*% py
-    lik[lik <= 10^(-323)] <- 10^(-323)
-    final_loglik          <- sum(log(lik))
-    loglik                <- c(loglik, final_loglik)
+    log_py_dens  <- sweep(log_dens, 2, log(py), FUN = '+')
+    final_loglik <- sum( apply(log_py_dens, 1, log_sum_exp) )
+    loglik       <- c(loglik, final_loglik)
 
     #++++ Update progress ++++#
 
@@ -617,15 +660,21 @@ MtM_complete_data <- function(
   #    Outlier Detection    #
   #-------------------------#
 
-  delta <- matrix(NA, nrow = n, ncol = G)
+  if (model == 't') {
+    delta <- matrix(NA_real_, nrow = n, ncol = G)
 
-  for (g in 1:G) {
-    delta[, g] <- mahalanobis(X, center = mu[g, ], cov = Sigma[, , g], tol = 1e-20)
+    for (g in 1:G) {
+      delta[, g] <- mahalanobis(X, center = mu[g, ], cov = Sigma[, , g], tol = 1e-20)
+    }
+
+    cluster_matr <- clusters_to_matrix(clusters, G)
+    delta        <- rowSums(delta * cluster_matr)
+    outliers     <- 1 - pchisq(delta, df = d) < 1 - outlier_cutoff
   }
 
-  cluster_matr <- clusters_to_matrix(clusters, G)
-  delta        <- rowSums(delta * cluster_matr)
-  outliers     <- 1 - pchisq(delta, df = d) < 1 - outlier_cutoff
+  if (model == 'C') {
+    outliers <- NULL
+  }
 
   #------------------------#
   #  Number of parameters  #
@@ -637,6 +686,11 @@ MtM_complete_data <- function(
     Sigma = G * d * (d + 1) / 2,
     df    = G
   )
+
+  if (model == 'C') {
+    npar$df <- NULL
+  }
+
   npar$total <- Reduce('+', npar)
 
   #----------------------------#
@@ -682,7 +736,7 @@ MtM_complete_data <- function(
   }
 
   output <- list(
-    model         = 't_complete_data',
+    model         = paste(model, '_complete_data', sep = ''),
     pi            = py,
     mu            = mu,
     Sigma         = Sigma,
@@ -691,7 +745,7 @@ MtM_complete_data <- function(
     clusters      = clusters,
     outliers      = outliers,
     data          = X,
-    complete      = complete.cases(X),
+    complete      = !is.na(X),
     npar          = npar,
     max_iter      = max_iter,
     iter_stop     = iter,
@@ -710,8 +764,16 @@ MtM_complete_data <- function(
     CLC           = CLC,
     init_method   = init_method
   )
+
+  if (model == 'C') {
+    output$df       <- NULL
+    output$outliers <- NULL
+  }
+
   class(output) <- 'MixtureMissing'
 
   return(output)
 
 }
+
+

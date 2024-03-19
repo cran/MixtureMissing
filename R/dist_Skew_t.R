@@ -7,9 +7,10 @@
 MStM_incomplete_data <- function(
     X,
     G,
+    model        = c('St', 'SC'),
     max_iter     = 20,
     epsilon      = 0.01,
-    init_method  = c("kmedoids", "kmeans", "hierarchical", "manual"),
+    init_method  = c("kmedoids", "kmeans", "hierarchical", "mclust", "manual"),
     clusters     = NULL,
     deriv_ctrl   = list(eps = 1e-8, d = 1e-4, zero.tol = sqrt(.Machine$double.eps/7e-7),
                         r = 6, v = 2, show.details = FALSE),
@@ -19,6 +20,8 @@ MStM_incomplete_data <- function(
   #------------------------------------#
   #    Objects for the EM Algorithm    #
   #------------------------------------#
+
+  model <- match.arg(model)
 
   n <- nrow(X)
   d <- ncol(X)
@@ -34,40 +37,43 @@ MStM_incomplete_data <- function(
     Im[[j]] <- which( apply(R, 1, function(r) all(r == M[j, ]) ) )
   }
 
-  z           <- matrix(NA, nrow = n, ncol = G)
-  z_tilde     <- matrix(NA, nrow = n, ncol = G)
+  z           <- matrix(NA_real_, nrow = n, ncol = G)
+  z_tilde     <- matrix(NA_real_, nrow = n, ncol = G)
   X_tilde     <- array(rep(X, G), dim = c(n, d, G))
   X_hat       <- array(rep(X, G), dim = c(n, d, G))
-  Sigma_tilde <- array(NA, dim = c(d, d, n, G))
+  Sigma_tilde <- array(NA_real_, dim = c(d, d, n, G))
 
-  a     <- matrix(NA, nrow = n, ncol = G)
-  b     <- matrix(NA, nrow = n, ncol = G)
-  c     <- matrix(NA, nrow = n, ncol = G)
-  N     <- rep(NA, G)
-  a_bar <- rep(NA, G)
-  b_bar <- rep(NA, G)
-  c_bar <- rep(NA, G)
-  X_bar <- matrix(NA, nrow = G, ncol = d)
+  a     <- matrix(NA_real_, nrow = n, ncol = G)
+  b     <- matrix(NA_real_, nrow = n, ncol = G)
+  c     <- matrix(NA_real_, nrow = n, ncol = G)
+  N     <- rep(NA_real_, G)
+  a_bar <- rep(NA_real_, G)
+  b_bar <- rep(NA_real_, G)
+  c_bar <- rep(NA_real_, G)
+  X_bar <- matrix(NA_real_, nrow = G, ncol = d)
 
-  py     <- rep(NA, G)
-  mu     <- matrix(NA, nrow = G, ncol = d)
-  Sigma  <- array(NA, dim = c(d, d, G))
-  beta   <- matrix(0.01, nrow = G, ncol = d)
-  df     <- rep(10, G)
+  py    <- rep(NA_real_, G)
+  mu    <- matrix(NA_real_, nrow = G, ncol = d)
+  Sigma <- array(NA_real_, dim = c(d, d, G))
+  beta <- matrix(0.01, nrow = G, ncol = d)
 
-  dens   <- matrix(NA, nrow = n, ncol = G)
-  iter   <- 0
-  loglik <- NULL
+  if (model == 'St') {
+    df <- rep(10, G)
+  }
+
+  if (model == 'SC') {
+    df <- rep(1, G)
+  }
+
+  log_dens <- matrix(NA_real_, nrow = n, ncol = G)
+  iter     <- 0
+  loglik   <- NULL
 
   #--------------------------------#
   #    Parameter Initialization    #
   #--------------------------------#
 
   init_method <- match.arg(init_method)
-
-  if (progress) {
-    cat('\nInitialization:', init_method, '\n')
-  }
 
   X_imp <- mean_impute(X)
 
@@ -292,13 +298,19 @@ MStM_incomplete_data <- function(
 
       #++++ M-step: df (degree of freedom) ++++#
 
-      root <- tryCatch(
-        uniroot(df_MSt_func, ws_term = sum(z_tilde[, g] * (c[, g] + b[, g])) / N[g],
-                lower = 2, upper = 200)$root,
-        error = function(e) { return(NULL) }
-      )
+      if (model == 'St') {
+        root <- tryCatch(
+          uniroot(df_MSt_func, ws_term = sum(z_tilde[, g] * (c[, g] + b[, g])) / N[g],
+                  lower = 2, upper = 200)$root,
+          error = function(e) { return(NULL) }
+        )
 
-      df[g] <- ifelse(!is.null(root), root, df[g])
+        df[g] <- ifelse(!is.null(root), root, df[g])
+      }
+
+      if (model == 'SC') {
+        df[g] <- 1
+      }
 
     }
 
@@ -315,15 +327,14 @@ MStM_incomplete_data <- function(
         Sigma_oo <- Sigma[o, o, g]
         beta_o   <- beta[g, o]
 
-        dens[Im[[j]], g] <- dSt(Xo_j, mu = mu_o, Sigma = Sigma_oo, beta = beta_o, df = df[g])
+        log_dens[Im[[j]], g] <- dSt(Xo_j, mu = mu_o, Sigma = Sigma_oo, beta = beta_o, df = df[g], log = TRUE)
 
       }
     }
 
-    lik                   <- dens %*% py
-    lik[lik <= 10^(-323)] <- 10^(-323)
-    final_loglik          <- sum(log(lik))
-    loglik                <- c(loglik, final_loglik)
+    log_py_dens  <- sweep(log_dens, 2, log(py), FUN = '+')
+    final_loglik <- sum( apply(log_py_dens, 1, log_sum_exp) )
+    loglik       <- c(loglik, final_loglik)
 
     #++++ Update progress ++++#
 
@@ -356,12 +367,12 @@ MStM_incomplete_data <- function(
   complete  <- complete.cases(X)
 
   for (i in which(!complete)) {
-    X_imputed[i, ] <- X_hat[i, , clusters[i]]
+    X_imputed[i, ] <- X_tilde[i, , clusters[i]]
   }
 
-  #----------------------------#
-  #    Number of Parameters    #
-  #----------------------------#
+  #------------------------#
+  #  Number of parameters  #
+  #------------------------#
 
   npar <- list(
     pi     = G - 1,
@@ -370,6 +381,11 @@ MStM_incomplete_data <- function(
     beta   = G * d,
     df     = G
   )
+
+  if (model == 'SC') {
+    npar$df <- NULL
+  }
+
   npar$total <- Reduce('+', npar)
 
   #----------------------------#
@@ -418,7 +434,7 @@ MStM_incomplete_data <- function(
   }
 
   output <- list(
-    model         = 'St_incomplete_data',
+    model         = paste(model, '_incomplete_data', sep = ''),
     pi            = py,
     mu            = mu,
     Sigma         = Sigma,
@@ -427,7 +443,7 @@ MStM_incomplete_data <- function(
     z_tilde       = z_tilde,
     clusters      = clusters,
     data          = X_imputed,
-    complete      = complete.cases(X),
+    complete      = !is.na(X),
     npar          = npar,
     max_iter      = max_iter,
     iter_stop     = iter,
@@ -446,24 +462,23 @@ MStM_incomplete_data <- function(
     CLC           = CLC,
     init_method   = init_method
   )
+
+  if (model == 'SC') {
+    output$df <- NULL
+  }
+
   class(output) <- 'MixtureMissing'
 
   return(output)
-
 }
-
-###########################################################################
-###                                                                     ###
-###            Multivariate Skew-t Mixture for Complete Data            ###
-###                                                                     ###
-###########################################################################
 
 MStM_complete_data <- function(
     X,
     G,
+    model        = c('St', 'SC', 'C'),
     max_iter     = 20,
     epsilon      = 0.01,
-    init_method  = c("kmedoids", "kmeans", "hierarchical", "manual"),
+    init_method  = c("kmedoids", "kmeans", "hierarchical", "mclust", "manual"),
     clusters     = NULL,
     deriv_ctrl   = list(eps = 1e-8, d = 1e-4, zero.tol = sqrt(.Machine$double.eps/7e-7),
                         r = 6, v = 2, show.details = FALSE),
@@ -474,41 +489,46 @@ MStM_complete_data <- function(
   #    Objects for the EM Algorithm    #
   #------------------------------------#
 
+  model <- match.arg(model)
+
   n <- nrow(X)
   d <- ncol(X)
 
-  z           <- matrix(NA, nrow = n, ncol = G)
-  z_tilde     <- matrix(NA, nrow = n, ncol = G)
-  Sigma_tilde <- array(NA, dim = c(d, d, n, G))
+  z           <- matrix(NA_real_, nrow = n, ncol = G)
+  z_tilde     <- matrix(NA_real_, nrow = n, ncol = G)
+  Sigma_tilde <- array(NA_real_, dim = c(d, d, n, G))
 
-  a     <- matrix(NA, nrow = n, ncol = G)
-  b     <- matrix(NA, nrow = n, ncol = G)
-  c     <- matrix(NA, nrow = n, ncol = G)
-  N     <- rep(NA, G)
-  a_bar <- rep(NA, G)
-  b_bar <- rep(NA, G)
-  c_bar <- rep(NA, G)
-  X_bar <- matrix(NA, nrow = G, ncol = d)
+  a     <- matrix(NA_real_, nrow = n, ncol = G)
+  b     <- matrix(NA_real_, nrow = n, ncol = G)
+  c     <- matrix(NA_real_, nrow = n, ncol = G)
+  N     <- rep(NA_real_, G)
+  a_bar <- rep(NA_real_, G)
+  b_bar <- rep(NA_real_, G)
+  c_bar <- rep(NA_real_, G)
+  X_bar <- matrix(NA_real_, nrow = G, ncol = d)
 
-  py    <- rep(NA, G)
-  mu    <- matrix(NA, nrow = G, ncol = d)
-  Sigma <- array(NA, dim = c(d, d, G))
-  beta  <- matrix(0.01, nrow = G, ncol = d)
-  df    <- rep(10, G)
+  py    <- rep(NA_real_, G)
+  mu    <- matrix(NA_real_, nrow = G, ncol = d)
+  Sigma <- array(NA_real_, dim = c(d, d, G))
+  beta <- matrix(0.01, nrow = G, ncol = d)
 
-  dens   <- matrix(NA, nrow = n, ncol = G)
-  iter   <- 0
-  loglik <- NULL
+  if (model == 'St') {
+    df <- rep(10, G)
+  }
+
+  if (model == 'SC') {
+    df <- rep(1, G)
+  }
+
+  log_dens <- matrix(NA_real_, nrow = n, ncol = G)
+  iter     <- 0
+  loglik   <- NULL
 
   #--------------------------------#
   #    Parameter Initialization    #
   #--------------------------------#
 
   init_method <- match.arg(init_method)
-
-  if (progress) {
-    cat('\nInitialization:', init_method, '\n')
-  }
 
   if (G == 1) {
 
@@ -625,26 +645,31 @@ MStM_complete_data <- function(
 
       #++++ M-step: df (degree of freedom) ++++#
 
-      root <- tryCatch(
-        uniroot(df_MSt_func, ws_term = sum(z_tilde[, g] * (c[, g] + b[, g])) / N[g],
-                lower = 2, upper = 200)$root,
-        error = function(e) { return(NULL) }
-      )
+      if (model == 'St') {
+        root <- tryCatch(
+          uniroot(df_MSt_func, ws_term = sum(z_tilde[, g] * (c[, g] + b[, g])) / N[g],
+                  lower = 2, upper = 200)$root,
+          error = function(e) { return(NULL) }
+        )
 
-      df[g] <- ifelse(!is.null(root), root, df[g])
+        df[g] <- ifelse(!is.null(root), root, df[g])
+      }
+
+      if (model == 'SC') {
+        df[g] <- 1
+      }
 
     }
 
     #++++ Observed Log-likelihood ++++#
 
     for (g in 1:G) {
-      dens[, g] <- dSt(X, mu = mu[g, ], Sigma = Sigma[, , g], beta = beta[g, ], df = df[g])
+      log_dens[, g] <- dSt(X, mu = mu[g, ], Sigma = Sigma[, , g], beta = beta[g, ], df = df[g], log = TRUE)
     }
 
-    lik                   <- dens %*% py
-    lik[lik <= 10^(-323)] <- 10^(-323)
-    final_loglik          <- sum(log(lik))
-    loglik                <- c(loglik, final_loglik)
+    log_py_dens  <- sweep(log_dens, 2, log(py), FUN = '+')
+    final_loglik <- sum( apply(log_py_dens, 1, log_sum_exp) )
+    loglik       <- c(loglik, final_loglik)
 
     #++++ Update progress ++++#
 
@@ -680,6 +705,11 @@ MStM_complete_data <- function(
     beta   = G * d,
     df     = G
   )
+
+  if (model == 'SC') {
+    npar$df <- NULL
+  }
+
   npar$total <- Reduce('+', npar)
 
   #----------------------------#
@@ -728,7 +758,7 @@ MStM_complete_data <- function(
   }
 
   output <- list(
-    model         = 'St_complete_data',
+    model         = paste(model, '_complete_data', sep = ''),
     pi            = py,
     mu            = mu,
     Sigma         = Sigma,
@@ -737,7 +767,7 @@ MStM_complete_data <- function(
     z_tilde       = z_tilde,
     clusters      = clusters,
     data          = X,
-    complete      = complete.cases(X),
+    complete      = !is.na(X),
     npar          = npar,
     max_iter      = max_iter,
     iter_stop     = iter,
@@ -756,6 +786,11 @@ MStM_complete_data <- function(
     CLC           = CLC,
     init_method   = init_method
   )
+
+  if (model == 'SC') {
+    output$df <- NULL
+  }
+
   class(output) <- 'MixtureMissing'
 
   return(output)
@@ -786,7 +821,8 @@ dSt <- function(
     mu    = rep(0, d),    # location
     Sigma = diag(d),      # dispersion
     beta  = rep(0, d),    # skewness
-    df    = 10            # degree of freedom
+    df    = 10,           # degree of freedom
+    log   = FALSE
 ) {
 
   #----------------------#
@@ -845,10 +881,12 @@ dSt <- function(
   res <- res - lgamma(df / 2) - (df/2 - 1) * log(2)
   res <- res + X_centrd %*% Sigma_inv %*% beta
 
-  dens <- c(exp(res))
-  dens[dens <= 10^(-323)] <- 10^(-323)
+  if (!log) {
+    res <- c(exp(res))
+    res[res <= 10^(-323)] <- 10^(-323)
+  }
 
-  return(dens)
+  return(res)
 
   # lvx <- (df / 2) * log(df) + (-df/2 - d/2) * log(s1)
   # lvx <- lvx + log(besselK(s1, nu = -df/2 - d/2, expon.scaled = TRUE)) - s1

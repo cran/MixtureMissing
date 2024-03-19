@@ -14,17 +14,19 @@
 #'
 #' @param X An \eqn{n} x \eqn{d} matrix or data frame where \eqn{n} is the number of
 #'   observations and \eqn{d} is the number of variables.
-#' @param G The number of clusters, which must be at least 1. If \code{G = 1}, then
-#'   both \code{init_method} and \code{clusters} are ignored.
+#' @param G An integer vector specifying the numbers of clusters, which must be at least 1.
 #' @param model A string indicating the mixture model to be fitted; "GH" for generalized
 #' hyperbolic by default. See the details section for a list of available distributions.
+#' @param criterion A character string indicating the information criterion for model
+#'   selection. "BIC" is used by default. See the details section for a list of available
+#'   information criteria.
 #' @param max_iter (optional) A numeric value giving the maximum number of
 #'   iterations each EM algorithm is allowed to use; 20 by default.
 #' @param epsilon (optional) A number specifying the epsilon value for the
 #'   Aitken-based stopping criterion used in the EM algorithm: 0.01 by default.
 #' @param init_method (optional) A string specifying the method to initialize
 #'   the EM algorithm. "kmedoids" clustering is used by default. Alternative
-#'   methods include "kmeans", "hierarchical", and "manual". When "manual" is chosen,
+#'   methods include "kmeans", "hierarchical", "mclust", and "manual". When "manual" is chosen,
 #'   a vector \code{clusters} of length \eqn{n} must be specified. If the data set is
 #'   incomplete, missing values will be first filled based on the mean imputation method.
 #' @param clusters (optional) A vector of length \eqn{n} that specifies the initial
@@ -57,6 +59,19 @@
 #'   \item H - Hyperbolic
 #'   \item SH - Symmetric Hyperbolic
 #' }
+#' Available information criteria include
+#' \itemize{
+#'  \item AIC - Akaike information criterion
+#'   \item BIC - Bayesian information criterion
+#'   \item KIC - Kullback information criterion
+#'   \item KICc - Corrected Kullback information criterion
+#'   \item AIC3 - Modified AIC
+#'   \item CAIC - Bozdogan's consistent AIC
+#'   \item AICc - Small-sample version of AIC
+#'   \item ICL - Integrated Completed Likelihood criterion
+#'   \item AWE - Approximate weight of evidence
+#'   \item CLC - Classification likelihood criterion
+#' }
 #'
 #' @return An object of class \code{MixtureMissing} with:
 #'   \item{model}{The model used to fit the data set.}
@@ -71,11 +86,10 @@
 #'     probabilities that the corresponding observation belongs to each cluster.}
 #'   \item{clusters}{A numeric vector of length \eqn{n} indicating cluster
 #'     memberships determined by the model.}
-#'   \item{outliers}{A logical vector of length \eqn{n} indicating observations that are outliers. Only available if \code{model} is t}
+#'   \item{outliers}{A logical vector of length \eqn{n} indicating observations that are outliers. Only available if \code{model} is t; NULL otherwise.}
 #'   \item{data}{The original data set if it is complete; otherwise, this is
 #'     the data set with missing values imputed by appropriate expectations.}
-#'   \item{complete}{A logical vector of length \eqn{n} indicating which observation(s)
-#'     have no missing values.}
+#'   \item{complete}{An \eqn{n} by \eqn{d} logical matrix indicating which cells have no missing values.}
 #'   \item{npar}{The breakdown of the number of parameters to estimate.}
 #'   \item{max_iter}{Maximum number of iterations allowed in the EM algorithm.}
 #'   \item{iter_stop}{The actual number of iterations needed when fitting the
@@ -124,7 +138,7 @@
 #' summary(mod)
 #' plot(mod)
 #'
-#' @import numDeriv Bessel
+#' @import numDeriv Bessel mclust
 #' @importFrom stats complete.cases cov cutree dist dnorm hclust kmeans
 #'   mahalanobis pchisq rmultinom runif var uniroot
 #' @importFrom utils setTxtProgressBar txtProgressBar
@@ -133,9 +147,10 @@ MGHM <- function(
     X,
     G,
     model          = c('GH', 'NIG', 'SNIG', 'SC', 'C', 'St', 't', 'N', 'SGH', 'HUM', 'H', 'SH'),
+    criterion      = c('BIC', 'AIC', 'KIC', 'KICc', 'AIC3', 'CAIC', 'AICc', 'ICL', 'AWE', 'CLC'),
     max_iter       = 20,
     epsilon        = 0.01,
-    init_method    = c("kmedoids", "kmeans", "hierarchical", "manual"),
+    init_method    = c("kmedoids", "kmeans", "hierarchical", "mclust", "manual"),
     clusters       = NULL,
     outlier_cutoff = 0.95,
     deriv_ctrl     = list(eps = 1e-8, d = 1e-4, zero.tol = sqrt(.Machine$double.eps/7e-7),
@@ -146,14 +161,6 @@ MGHM <- function(
   #----------------------#
   #    Input checking    #
   #----------------------#
-
-  if (G < 1) {
-    stop('Number of clusters G must be at least 1')
-  }
-
-  if (G %% 1 != 0) {
-    stop('Number of clusters G must be an integer')
-  }
 
   if (is.data.frame(X)) {
     X <- as.matrix(X)
@@ -167,9 +174,26 @@ MGHM <- function(
     stop('X must be a numeric matrix, data frame or vector')
   }
 
+  G <- unique(G)
+
+  if (any(G < 1)) {
+    stop('Number of clusters G must be at least 1')
+  }
+
+  if (any(G %% 1 != 0)) {
+    stop('Number of clusters G must be an integer')
+  }
+
   #---------------------#
   #    Model Fitting    #
   #---------------------#
+
+  criterion <- match.arg(criterion)
+  best_info <- Inf
+  best_mod  <- NULL
+
+  infos        <- rep(NA_real_, length(G))
+  names(infos) <- G
 
   model <- match.arg(model)
 
@@ -187,387 +211,263 @@ MGHM <- function(
                'Symmetric Generalized Hyperbolic', 'Hyperbolic Univariate Marginals',
                'Hyperbolic', 'Symmetric Hyperbolic')
 
-  if (any(is.na(X))) {
-
+  if ( any(is.na(X)) ) {
     if (ncol(X) < 2) {
       stop('If X contains NAs, X must be at least bivariate')
     }
 
     if (progress) {
       cat('\nMixture:', m_names[match(model, m_codes)], paste('(', model, ')', sep = ''), '\n')
-      cat('\nData Set: Incomplete\n')
+      cat('Data Set: Incomplete\n')
     }
-
-    #++++ Generalized Hyperbolic ++++#
-
-    if (model == 'GH') {
-      mod <- MGHM_incomplete_data(
-        X           = X,
-        G           = G,
-        max_iter    = max_iter,
-        epsilon     = epsilon,
-        init_method = init_method,
-        clusters    = clusters,
-        deriv_ctrl  = deriv_ctrl,
-        progress    = progress
-      )
-    }
-
-    #++++ Normal-Inverse Gaussian ++++#
-
-    if (model == 'NIG') {
-      mod <- MNIGM_incomplete_data(
-        X           = X,
-        G           = G,
-        max_iter    = max_iter,
-        epsilon     = epsilon,
-        init_method = init_method,
-        clusters    = clusters,
-        deriv_ctrl  = deriv_ctrl,
-        progress    = progress
-      )
-    }
-
-    #++++ Skew Normal-Inverse Gaussian ++++#
-
-    if (model == 'SNIG') {
-      mod <- MSNIGM_incomplete_data(
-        X           = X,
-        G           = G,
-        max_iter    = max_iter,
-        epsilon     = epsilon,
-        init_method = init_method,
-        clusters    = clusters,
-        deriv_ctrl  = deriv_ctrl,
-        progress    = progress
-      )
-    }
-
-    #++++ Skew-Cauchy ++++#
-
-    if (model == 'SC') {
-      mod <- MSCM_incomplete_data(
-        X            = X,
-        G            = G,
-        max_iter     = max_iter,
-        epsilon      = epsilon,
-        init_method  = init_method,
-        clusters     = clusters,
-        deriv_ctrl   = deriv_ctrl,
-        progress     = progress
-      )
-    }
-
-    #++++ Cauchy ++++#
-
-    if (model == 'C') {
-      mod <- MCM_incomplete_data(
-        X            = X,
-        G            = G,
-        max_iter     = max_iter,
-        epsilon      = epsilon,
-        init_method  = init_method,
-        clusters     = clusters,
-        progress     = progress
-      )
-    }
-
-    #++++ Skew-t ++++#
-
-    if (model == 'St') {
-      mod <- MStM_incomplete_data(
-        X            = X,
-        G            = G,
-        max_iter     = max_iter,
-        epsilon      = epsilon,
-        init_method  = init_method,
-        clusters     = clusters,
-        deriv_ctrl   = deriv_ctrl,
-        progress     = progress
-      )
-    }
-
-    #++++ t ++++#
-
-    if (model == 't') {
-      mod <- MtM_incomplete_data(
-        X              = X,
-        G              = G,
-        max_iter       = max_iter,
-        epsilon        = epsilon,
-        init_method    = init_method,
-        clusters       = clusters,
-        outlier_cutoff = outlier_cutoff,
-        progress       = progress
-      )
-    }
-
-    #++++ Normal ++++#
-
-    if (model == 'N') {
-      mod <- MNM_incomplete_data(
-        X              = X,
-        G              = G,
-        max_iter       = max_iter,
-        epsilon        = epsilon,
-        init_method    = init_method,
-        clusters       = clusters,
-        progress       = progress
-      )
-    }
-
-    #++++ Symmetric Generalized Hyperbolic ++++#
-
-    if (model == 'SGH') {
-      mod <- MSGHM_incomplete_data(
-        X           = X,
-        G           = G,
-        max_iter    = max_iter,
-        epsilon     = epsilon,
-        init_method = init_method,
-        clusters    = clusters,
-        deriv_ctrl  = deriv_ctrl,
-        progress    = progress
-      )
-    }
-
-    #++++ Hyperbolic Univarate Marginals ++++#
-
-    if (model == 'HUM') {
-      mod <- MHM_incomplete_data(
-        X           = X,
-        G           = G,
-        max_iter    = max_iter,
-        epsilon     = epsilon,
-        init_method = init_method,
-        clusters    = clusters,
-        deriv_ctrl  = deriv_ctrl,
-        progress    = progress
-      )
-    }
-
-    #++++ Hyperbolic ++++#
-
-    if (model == 'H') {
-      mod <- MHM_incomplete_data(
-        X            = X,
-        G            = G,
-        max_iter     = max_iter,
-        epsilon      = epsilon,
-        init_method  = init_method,
-        clusters     = clusters,
-        deriv_ctrl   = deriv_ctrl,
-        progress     = progress
-      )
-    }
-
-    #++++ Symmetric Hyperbolic ++++#
-
-    if (model == 'SH') {
-      mod <- MSHM_incomplete_data(
-        X            = X,
-        G            = G,
-        max_iter     = max_iter,
-        epsilon      = epsilon,
-        init_method  = init_method,
-        clusters     = clusters,
-        deriv_ctrl   = deriv_ctrl,
-        progress     = progress
-      )
-    }
-
   } else {
-
     if (progress) {
       cat('\nMixture:', m_names[match(model, m_codes)], paste('(', model, ')', sep = ''), '\n')
       cat('Data Set: Complete\n')
     }
-
-    #++++ Generalized Hyperbolic ++++#
-
-    if (model == 'GH') {
-      mod <- MGHM_complete_data(
-        X           = X,
-        G           = G,
-        max_iter    = max_iter,
-        epsilon     = epsilon,
-        init_method = init_method,
-        clusters    = clusters,
-        deriv_ctrl  = deriv_ctrl,
-        progress    = progress
-      )
-    }
-
-    #++++ Normal-Inverse Gaussian ++++#
-
-    if (model == 'NIG') {
-      mod <- MNIGM_complete_data(
-        X           = X,
-        G           = G,
-        max_iter    = max_iter,
-        epsilon     = epsilon,
-        init_method = init_method,
-        clusters    = clusters,
-        deriv_ctrl  = deriv_ctrl,
-        progress    = progress
-      )
-    }
-
-    #++++ Skew Normal-Inverse Gaussian ++++#
-
-    if (model == 'SNIG') {
-      mod <- MSNIGM_complete_data(
-        X           = X,
-        G           = G,
-        max_iter    = max_iter,
-        epsilon     = epsilon,
-        init_method = init_method,
-        clusters    = clusters,
-        deriv_ctrl  = deriv_ctrl,
-        progress    = progress
-      )
-    }
-
-    #++++ Skew-Cauchy ++++#
-
-    if (model == 'SC') {
-      mod <- MSCM_complete_data(
-        X            = X,
-        G            = G,
-        max_iter     = max_iter,
-        epsilon      = epsilon,
-        init_method  = init_method,
-        clusters     = clusters,
-        deriv_ctrl   = deriv_ctrl,
-        progress     = progress
-      )
-    }
-
-    #++++ Cauchy ++++#
-
-    if (model == 'C') {
-      mod <- MCM_complete_data(
-        X            = X,
-        G            = G,
-        max_iter     = max_iter,
-        epsilon      = epsilon,
-        init_method  = init_method,
-        clusters     = clusters,
-        progress     = progress
-      )
-    }
-
-    #++++ Skew-t ++++#
-
-    if (model == 'St') {
-      mod <- MStM_complete_data(
-        X            = X,
-        G            = G,
-        max_iter     = max_iter,
-        epsilon      = epsilon,
-        init_method  = init_method,
-        clusters     = clusters,
-        deriv_ctrl   = deriv_ctrl,
-        progress     = progress
-      )
-    }
-
-    #++++ t ++++#
-
-    if (model == 't') {
-      mod <- MtM_complete_data(
-        X              = X,
-        G              = G,
-        max_iter       = max_iter,
-        epsilon        = epsilon,
-        init_method    = init_method,
-        clusters       = clusters,
-        outlier_cutoff = outlier_cutoff,
-        progress       = progress
-      )
-    }
-
-    #++++ Normal ++++#
-
-    if (model == 'N') {
-      mod <- MNM_complete_data(
-        X              = X,
-        G              = G,
-        max_iter       = max_iter,
-        epsilon        = epsilon,
-        init_method    = init_method,
-        clusters       = clusters,
-        progress       = progress
-      )
-    }
-
-    #++++ Symmetric Generalized Hyperbolic ++++#
-
-    if (model == 'SGH') {
-      mod <- MSGHM_complete_data(
-        X           = X,
-        G           = G,
-        max_iter    = max_iter,
-        epsilon     = epsilon,
-        init_method = init_method,
-        clusters    = clusters,
-        deriv_ctrl  = deriv_ctrl,
-        progress    = progress
-      )
-    }
-
-    #++++ Hyperbolic Univariate Marginals ++++#
-
-    if (model == 'HUM') {
-      mod <- MHUMM_complete_data(
-        X           = X,
-        G           = G,
-        max_iter    = max_iter,
-        epsilon     = epsilon,
-        init_method = init_method,
-        clusters    = clusters,
-        deriv_ctrl  = deriv_ctrl,
-        progress    = progress
-      )
-    }
-
-    #++++ Hyperbolic ++++#
-
-    if (model == 'H') {
-      mod <- MHM_complete_data(
-        X           = X,
-        G           = G,
-        max_iter    = max_iter,
-        epsilon     = epsilon,
-        init_method = init_method,
-        clusters    = clusters,
-        deriv_ctrl  = deriv_ctrl,
-        progress    = progress
-      )
-    }
-
-    #++++ Symmetric Hyperbolic ++++#
-
-    if (model == 'SH') {
-      mod <- MSHM_complete_data(
-        X           = X,
-        G           = G,
-        max_iter    = max_iter,
-        epsilon     = epsilon,
-        init_method = init_method,
-        clusters    = clusters,
-        deriv_ctrl  = deriv_ctrl,
-        progress    = progress
-      )
-    }
-
   }
+
+  init_method <- match.arg(init_method)
 
   if (progress) {
-    cat('\n')
+    cat('Initialization:', init_method, '\n\n')
   }
 
-  return(mod)
+  if (length(G) > 1 & init_method == 'manual') {
+    stop('Mannual initialization can only be done if length(G) is 1')
+  }
+
+  G_vec <- G
+  iter  <- 1
+
+  for (G in G_vec) {
+
+    #++++ Fit each model in G ++++#
+
+    if (progress) {
+      cat('G = ', G, sep = '')
+    }
+
+    if ( any(is.na(X)) ) {
+
+      ### Generalized Hyperbolic
+      ### Normal-Inverse Gaussian
+      ### Skew Normal-Inverse Gaussian
+      ### Symmetric Generalized Hyperbolic
+      ### Hyperbolic Univarate Marginals
+      ### Hyperbolic
+      ### Symmetric Hyperbolic
+
+      if (model %in% c('GH', 'NIG', 'SNIG', 'SGH', 'HUM', 'H', 'SH')) {
+        mod <- tryCatch({
+          MGHM_incomplete_data(
+            X           = X,
+            G           = G,
+            model       = model,
+            max_iter    = max_iter,
+            epsilon     = epsilon,
+            init_method = init_method,
+            clusters    = clusters,
+            deriv_ctrl  = deriv_ctrl,
+            progress    = progress
+          )
+        }, error = function(err) { return(NULL) })
+      }
+
+      ### Skew-t
+      ### Skew-Cauchy
+
+      if (model %in% c('St', 'SC')) {
+        mod <- tryCatch({
+          MStM_incomplete_data(
+            X            = X,
+            G            = G,
+            model        = model,
+            max_iter     = max_iter,
+            epsilon      = epsilon,
+            init_method  = init_method,
+            clusters     = clusters,
+            deriv_ctrl   = deriv_ctrl,
+            progress     = progress
+          )
+        }, error = function(err) { return(NULL) })
+      }
+
+      ### t
+      ### Cauchy
+
+      if (model %in% c('t', 'C')) {
+        mod <- tryCatch({
+          MtM_incomplete_data(
+            X              = X,
+            G              = G,
+            model          = model,
+            max_iter       = max_iter,
+            epsilon        = epsilon,
+            init_method    = init_method,
+            clusters       = clusters,
+            outlier_cutoff = outlier_cutoff,
+            progress       = progress
+          )
+        }, error = function(err) { return(NULL) })
+      }
+
+      ### Normal
+
+      if (model == 'N') {
+        mod <- tryCatch({
+          MNM_incomplete_data(
+            X              = X,
+            G              = G,
+            max_iter       = max_iter,
+            epsilon        = epsilon,
+            init_method    = init_method,
+            clusters       = clusters,
+            progress       = progress
+          )
+        }, error = function(err) { return(NULL) })
+      }
+
+    } else {
+
+      ### Generalized Hyperbolic
+      ### Normal-Inverse Gaussian
+      ### Skew Normal-Inverse Gaussian
+      ### Symmetric Generalized Hyperbolic
+      ### Hyperbolic Univarate Marginals
+      ### Hyperbolic
+      ### Symmetric Hyperbolic
+
+      if (model %in% c('GH', 'NIG', 'SNIG', 'SGH', 'HUM', 'H', 'SH')) {
+        mod <- tryCatch({
+          MGHM_complete_data(
+            X           = X,
+            G           = G,
+            model       = model,
+            max_iter    = max_iter,
+            epsilon     = epsilon,
+            init_method = init_method,
+            clusters    = clusters,
+            deriv_ctrl  = deriv_ctrl,
+            progress    = progress
+          )
+        }, error = function(err) { return(NULL) })
+      }
+
+      ### Skew-t
+      ### Skew-Cauchy
+
+      if (model %in% c('St', 'SC')) {
+        mod <- tryCatch({
+          MStM_complete_data(
+            X            = X,
+            G            = G,
+            model        = model,
+            max_iter     = max_iter,
+            epsilon      = epsilon,
+            init_method  = init_method,
+            clusters     = clusters,
+            deriv_ctrl   = deriv_ctrl,
+            progress     = progress
+          )
+        }, error = function(err) { return(NULL) })
+      }
+
+      ### t
+      ### Cauchy
+
+      if (model %in% c('t', 'C')) {
+        mod <- tryCatch({
+          MtM_complete_data(
+            X              = X,
+            G              = G,
+            model          = model,
+            max_iter       = max_iter,
+            epsilon        = epsilon,
+            init_method    = init_method,
+            clusters       = clusters,
+            outlier_cutoff = outlier_cutoff,
+            progress       = progress
+          )
+        }, error = function(err) { return(NULL) })
+      }
+
+      ### Normal
+
+      if (model == 'N') {
+        mod <- tryCatch({
+          MNM_complete_data(
+            X              = X,
+            G              = G,
+            max_iter       = max_iter,
+            epsilon        = epsilon,
+            init_method    = init_method,
+            clusters       = clusters,
+            progress       = progress
+          )
+        }, error = function(err) { return(NULL) })
+      }
+
+    }    # end if ( any(is.na(X)) )
+
+    #++++ Compare to the current best model ++++#
+
+    if (!is.null(mod)) {
+      infos[iter] <- mod[[criterion]]
+
+      if (best_info > infos[iter]) {
+        best_info <- infos[iter]
+        best_mod  <- mod
+      }
+    }
+
+    #++++ Update progress ++++#
+
+    if (progress) {
+      if (is.null(mod)) {
+        cat('\nFitting G = ', G, ' was failed\n', sep = '')
+      } else {
+        cat('Fitting G = ', G, ' was successful\n', sep = '')
+      }
+    }
+
+    iter <- iter + 1
+
+  }    # end for (G in G_vec)
+
+  #--------------------------------------------#
+  #    Summarize Results and Prepare Output    #
+  #--------------------------------------------#
+
+  if (progress) {
+
+    if (length(G_vec) > 1) {
+      if (sum(is.na(infos)) == length(G_vec)) {
+        cat('The best mixture model cannot be determined\n')
+      } else {
+        cat('According to ', criterion, ', the best mixture model is based on G = ', G_vec[which.min(infos)], sep = '')
+      }
+
+      cat('\nModel rank according to ', criterion, ':', sep = '')
+      infos <- sort(infos, na.last = TRUE)
+      for(j in 1:length(infos)){
+        cat('\n')
+        if (!is.na(infos[j])) {
+          cat('  ', j, '. G = ', names(infos)[j], ': ', round(infos[j], digits = 4), sep = '')
+        } else {
+          cat('  ', j, '. G = ', names(infos)[j], ': Failed', sep = '')
+        }
+      }
+    } else {
+      if (!is.na(infos)) {
+        cat('The fitted mixture model with G = ', G, ' has ', criterion, ' = ', infos, sep = '')
+      }
+    }
+
+    cat('\n\n')
+  }
+
+  return(best_mod)
 
 }
 
@@ -580,9 +480,10 @@ MGHM <- function(
 MGHM_incomplete_data <- function(
     X,
     G,
+    model        = c('GH', 'NIG', 'SNIG', 'SGH', 'HUM', 'H', 'SH'),
     max_iter     = 20,
     epsilon      = 0.01,
-    init_method  = c("kmedoids", "kmeans", "hierarchical", "manual"),
+    init_method  = c("kmedoids", "kmeans", "hierarchical", "mclust", "manual"),
     clusters     = NULL,
     deriv_ctrl   = list(eps = 1e-8, d = 1e-4, zero.tol = sqrt(.Machine$double.eps/7e-7),
                         r = 6, v = 2, show.details = FALSE),
@@ -592,6 +493,8 @@ MGHM_incomplete_data <- function(
   #------------------------------------#
   #    Objects for the EM Algorithm    #
   #------------------------------------#
+
+  model <- match.arg(model)
 
   n <- nrow(X)
   d <- ncol(X)
@@ -607,29 +510,40 @@ MGHM_incomplete_data <- function(
     Im[[j]] <- which( apply(R, 1, function(r) all(r == M[j, ]) ) )
   }
 
-  z           <- matrix(NA, nrow = n, ncol = G)
-  z_tilde     <- matrix(NA, nrow = n, ncol = G)
+  z           <- matrix(NA_real_, nrow = n, ncol = G)
+  z_tilde     <- matrix(NA_real_, nrow = n, ncol = G)
   X_tilde     <- array(rep(X, G), dim = c(n, d, G))
   X_hat       <- array(rep(X, G), dim = c(n, d, G))
-  Sigma_tilde <- array(NA, dim = c(d, d, n, G))
+  Sigma_tilde <- array(NA_real_, dim = c(d, d, n, G))
 
-  a     <- matrix(NA, nrow = n, ncol = G)
-  b     <- matrix(NA, nrow = n, ncol = G)
-  c     <- matrix(NA, nrow = n, ncol = G)
-  N     <- rep(NA, G)
-  a_bar <- rep(NA, G)
-  b_bar <- rep(NA, G)
-  c_bar <- rep(NA, G)
-  X_bar <- matrix(NA, nrow = G, ncol = d)
+  a     <- matrix(NA_real_, nrow = n, ncol = G)
+  b     <- matrix(NA_real_, nrow = n, ncol = G)
+  c     <- matrix(NA_real_, nrow = n, ncol = G)
+  N     <- rep(NA_real_, G)
+  a_bar <- rep(NA_real_, G)
+  b_bar <- rep(NA_real_, G)
+  c_bar <- rep(NA_real_, G)
+  X_bar <- matrix(NA_real_, nrow = G, ncol = d)
 
-  py     <- rep(NA, G)
-  mu     <- matrix(NA, nrow = G, ncol = d)
-  Sigma  <- array(NA, dim = c(d, d, G))
+  py     <- rep(NA_real_, G)
+  mu     <- matrix(NA_real_, nrow = G, ncol = d)
+  Sigma  <- array(NA_real_, dim = c(d, d, G))
   beta   <- matrix(0, nrow = G, ncol = d)
-  lambda <- rep(-1/2, G)
   omega  <- rep(1, G)
 
-  dens   <- matrix(NA, nrow = n, ncol = G)
+  if (model %in% c('GH', 'NIG', 'SNIG', 'SGH')) {
+    lambda <- rep(-1/2, G)
+  }
+
+  if (model == 'HUM') {
+    lambda <- rep(1, G)
+  }
+
+  if (model %in% c('H', 'SH')) {
+    lambda <- rep(-(d + 1)/2, G)
+  }
+
+  log_dens   <- matrix(NA_real_, nrow = n, ncol = G)
   iter   <- 0
   loglik <- NULL
 
@@ -638,10 +552,6 @@ MGHM_incomplete_data <- function(
   #--------------------------------#
 
   init_method <- match.arg(init_method)
-
-  if (progress) {
-    cat('\nInitialization:', init_method, '\n')
-  }
 
   X_imp <- mean_impute(X)
 
@@ -784,15 +694,26 @@ MGHM_incomplete_data <- function(
 
     for (g in 1:G) {
 
-      num_mu <- colSums( z_tilde[, g] * ( (!R) * (a_bar[g] * b[, g] - 1) * X_tilde[, , g] + R * (a_bar[g] * X_tilde[, , g] - X_hat[, , g]) ) )
-      den_mu <- sum( z_tilde[, g] * (a_bar[g] * b[, g] - 1) )
+      if (model %in% c('GH', 'NIG', 'H')) {
+        num_mu <- colSums( z_tilde[, g] * ( (!R) * (a_bar[g] * b[, g] - 1) * X_tilde[, , g] + R * (a_bar[g] * X_tilde[, , g] - X_hat[, , g]) ) )
+        den_mu <- sum( z_tilde[, g] * (a_bar[g] * b[, g] - 1) )
 
-      mu[g, ] <- num_mu / den_mu
+        mu[g, ] <- num_mu / den_mu
 
-      num_beta <- colSums( z_tilde[, g] * ( (!R) * (b_bar[g] - b[, g]) * X_tilde[, , g] + R * (b_bar[g] * X_hat[, , g] - X_tilde[, , g]) ) )
-      den_beta <- den_mu
+        num_beta <- colSums( z_tilde[, g] * ( (!R) * (b_bar[g] - b[, g]) * X_tilde[, , g] + R * (b_bar[g] * X_hat[, , g] - X_tilde[, , g]) ) )
+        den_beta <- den_mu
 
-      beta[g, ] <- num_beta / den_beta
+        beta[g, ] <- num_beta / den_beta
+      }
+
+      if (model %in% c('SNIG', 'SGH', 'HUM', 'SH')) {
+        num_mu <- colSums(z_tilde[, g] * b[, g] * ((!R) * X_tilde[, , g] + R * (X_tilde[, , g] - X_hat[, , g])/(b[, g] - 1)))
+        den_mu <- sum(z_tilde[, g] * b[, g])
+
+        mu[g, ] <- num_mu / den_mu
+
+        beta[g, ] <- 0
+      }
 
     }
 
@@ -867,13 +788,27 @@ MGHM_incomplete_data <- function(
 
       #++++ M-step: lambda (index) and omega (concentration) ++++#
 
-      if (c_bar[g] == 0) {
-        lambda[g] <- 0
-      } else {
-        grad_lambda <- numDeriv::grad(log_besselK, x = lambda[g], y = omega[g],
-                                      method = 'Richardson', method.args = deriv_ctrl)
+      if (model %in% c('GH', 'SGH')) {
+        if (c_bar[g] == 0) {
+          lambda[g] <- 0
+        } else {
+          grad_lambda <- numDeriv::grad(log_besselK, x = lambda[g], y = omega[g],
+                                        method = 'Richardson', method.args = deriv_ctrl)
 
-        lambda[g] <- c_bar[g] * lambda[g] / grad_lambda
+          lambda[g] <- c_bar[g] * lambda[g] / grad_lambda
+        }
+      }
+
+      if (model %in% c('NIG', 'SNIG')) {
+        lambda[g] <- -1/2
+      }
+
+      if (model == 'HUM') {
+        lambda[g] <- 1
+      }
+
+      if (model %in% c('H', 'SH')) {
+        lambda[g] <- -(d + 1)/2
       }
 
       grad_omega <- numDeriv::grad(q_func, x = omega[g], lambda = lambda[g],
@@ -903,16 +838,15 @@ MGHM_incomplete_data <- function(
         Sigma_oo <- Sigma[o, o, g]
         beta_o   <- beta[g, o]
 
-        dens[Im[[j]], g] <- dGH(Xo_j, mu = mu_o, Sigma = Sigma_oo, beta = beta_o,
-                                lambda = lambda[g], omega = omega[g])
+        log_dens[Im[[j]], g] <- dGH(Xo_j, mu = mu_o, Sigma = Sigma_oo, beta = beta_o,
+                                lambda = lambda[g], omega = omega[g], log = TRUE)
 
       }
     }
 
-    lik                   <- dens %*% py
-    lik[lik <= 10^(-323)] <- 10^(-323)
-    final_loglik          <- sum(log(lik))
-    loglik                <- c(loglik, final_loglik)
+    log_py_dens  <- sweep(log_dens, 2, log(py), FUN = '+')
+    final_loglik <- sum( apply(log_py_dens, 1, log_sum_exp) )
+    loglik       <- c(loglik, final_loglik)
 
     #++++ Update progress ++++#
 
@@ -960,6 +894,20 @@ MGHM_incomplete_data <- function(
     lambda = G,
     omega  = G
   )
+
+  if (model %in% c('NIG', 'H')) {
+    npar$lambda <- 0
+  }
+
+  if (model %in% c('SNIG', 'HUM', 'SH')) {
+    npar$beta   <- 0
+    npar$lambda <- 0
+  }
+
+  if (model == 'SGH') {
+    npar$beta <- 0
+  }
+
   npar$total <- Reduce('+', npar)
 
   #----------------------------#
@@ -970,7 +918,7 @@ MGHM_incomplete_data <- function(
   BIC <- -2 * final_loglik + npar$total * log(n)
 
   KIC  <- -2 * final_loglik + 3 * (npar$total + 1)
-  KICc <- -2 * final_loglik + 2 * (npar$total + 1) * n/(n-npar$total -2) - n * digamma((n-npar$total)/2) + n * log(n/2)
+  KICc <- -2 * final_loglik + 2 * (npar$total + 1) * n/(n-npar$total - 2) - n * digamma((n - npar$total)/2) + n * log(n/2)
 
   AIC3 <- -2 * final_loglik + 3 * npar$total
   CAIC <- -2 * final_loglik + npar$total * (1 + log(n))
@@ -1009,34 +957,34 @@ MGHM_incomplete_data <- function(
   }
 
   output <- list(
-    model         = 'GH_incomplete_data',
-    pi            = py,
-    mu            = mu,
-    Sigma         = Sigma,
-    beta          = beta,
-    lambda        = lambda,
-    omega         = omega,
-    z_tilde       = z_tilde,
-    clusters      = clusters,
-    data          = X_imputed,
-    complete      = complete.cases(X),
-    npar          = npar,
-    max_iter      = max_iter,
-    iter_stop     = iter,
-    final_loglik  = final_loglik,
-    loglik        = loglik,
-    AIC           = AIC,
-    BIC           = BIC,
-    KIC           = KIC,
-    KICc          = KICc,
-    AIC3          = AIC3,
-    CAIC          = CAIC,
-    AICc          = AICc,
-    ent           = ent,
-    ICL           = ICL,
-    AWE           = AWE,
-    CLC           = CLC,
-    init_method   = init_method
+    model        = paste(model, '_incomplete_data', sep = ''),
+    pi           = py,
+    mu           = mu,
+    Sigma        = Sigma,
+    beta         = beta,
+    lambda       = lambda,
+    omega        = omega,
+    z_tilde      = z_tilde,
+    clusters     = clusters,
+    data         = X_imputed,
+    complete     = !is.na(X),
+    npar         = npar,
+    max_iter     = max_iter,
+    iter_stop    = iter,
+    final_loglik = final_loglik,
+    loglik       = loglik,
+    AIC          = AIC,
+    BIC          = BIC,
+    KIC          = KIC,
+    KICc         = KICc,
+    AIC3         = AIC3,
+    CAIC         = CAIC,
+    AICc         = AICc,
+    ent          = ent,
+    ICL          = ICL,
+    AWE          = AWE,
+    CLC          = CLC,
+    init_method  = init_method
   )
   class(output) <- 'MixtureMissing'
 
@@ -1053,9 +1001,10 @@ MGHM_incomplete_data <- function(
 MGHM_complete_data <- function(
     X,
     G,
+    model        = c('GH', 'NIG', 'SNIG', 'SGH', 'HUM', 'H', 'SH'),
     max_iter     = 20,
     epsilon      = 0.01,
-    init_method  = c("kmedoids", "kmeans", "hierarchical", "manual"),
+    init_method  = c("kmedoids", "kmeans", "hierarchical", "mclust", "manual"),
     clusters     = NULL,
     deriv_ctrl   = list(eps = 1e-8, d = 1e-4, zero.tol = sqrt(.Machine$double.eps/7e-7),
                         r = 6, v = 2, show.details = FALSE),
@@ -1066,42 +1015,51 @@ MGHM_complete_data <- function(
   #    Objects for the EM Algorithm    #
   #------------------------------------#
 
+  model <- match.arg(model)
+
   n <- nrow(X)
   d <- ncol(X)
 
-  z           <- matrix(NA, nrow = n, ncol = G)
-  z_tilde     <- matrix(NA, nrow = n, ncol = G)
-  Sigma_tilde <- array(NA, dim = c(d, d, n, G))
+  z           <- matrix(NA_real_, nrow = n, ncol = G)
+  z_tilde     <- matrix(NA_real_, nrow = n, ncol = G)
+  Sigma_tilde <- array(NA_real_, dim = c(d, d, n, G))
 
-  a     <- matrix(NA, nrow = n, ncol = G)
-  b     <- matrix(NA, nrow = n, ncol = G)
-  c     <- matrix(NA, nrow = n, ncol = G)
-  N     <- rep(NA, G)
-  a_bar <- rep(NA, G)
-  b_bar <- rep(NA, G)
-  c_bar <- rep(NA, G)
-  X_bar <- matrix(NA, nrow = G, ncol = d)
+  a     <- matrix(NA_real_, nrow = n, ncol = G)
+  b     <- matrix(NA_real_, nrow = n, ncol = G)
+  c     <- matrix(NA_real_, nrow = n, ncol = G)
+  N     <- rep(NA_real_, G)
+  a_bar <- rep(NA_real_, G)
+  b_bar <- rep(NA_real_, G)
+  c_bar <- rep(NA_real_, G)
+  X_bar <- matrix(NA_real_, nrow = G, ncol = d)
 
-  py     <- rep(NA, G)
-  mu     <- matrix(NA, nrow = G, ncol = d)
-  Sigma  <- array(NA, dim = c(d, d, G))
+  py     <- rep(NA_real_, G)
+  mu     <- matrix(NA_real_, nrow = G, ncol = d)
+  Sigma  <- array(NA_real_, dim = c(d, d, G))
   beta   <- matrix(0, nrow = G, ncol = d)
-  lambda <- rep(-1/2, G)
   omega  <- rep(1, G)
 
-  dens   <- matrix(NA, nrow = n, ncol = G)
-  iter   <- 0
-  loglik <- NULL
+  if (model %in% c('GH', 'NIG', 'SNIG', 'SGH')) {
+    lambda <- rep(-1/2, G)
+  }
+
+  if (model == 'HUM') {
+    lambda <- rep(1, G)
+  }
+
+  if (model %in% c('H', 'SH')) {
+    lambda <- rep(-(d + 1)/2, G)
+  }
+
+  log_dens <- matrix(NA_real_, nrow = n, ncol = G)
+  iter     <- 0
+  loglik   <- NULL
 
   #--------------------------------#
   #    Parameter Initialization    #
   #--------------------------------#
 
   init_method <- match.arg(init_method)
-
-  if (progress) {
-    cat('\nInitialization:', init_method, '\n')
-  }
 
   if (G == 1) {
 
@@ -1189,15 +1147,26 @@ MGHM_complete_data <- function(
 
       #++++ M-step: mu (location) and beta (skewness) ++++#
 
-      num_mu <- colSums( z_tilde[, g] * X * (a_bar[g] * b[, g] - 1) )
-      den_mu <- sum( z_tilde[, g] * (a_bar[g] * b[, g] - 1) )
+      if (model %in% c('GH', 'NIG', 'H')) {
+        num_mu <- colSums( z_tilde[, g] * X * (a_bar[g] * b[, g] - 1) )
+        den_mu <- sum( z_tilde[, g] * (a_bar[g] * b[, g] - 1) )
 
-      mu[g, ] <- num_mu / den_mu
+        mu[g, ] <- num_mu / den_mu
 
-      num_beta <- colSums( z_tilde[, g] * X * (b_bar[g] - b[, g]) )
-      den_beta <- den_mu
+        num_beta <- colSums( z_tilde[, g] * X * (b_bar[g] - b[, g]) )
+        den_beta <- den_mu
 
-      beta[g, ] <- num_beta / den_beta
+        beta[g, ] <- num_beta / den_beta
+      }
+
+      if (model %in% c('SNIG', 'SGH', 'HUM', 'SH')) {
+        num_mu <- colSums( z_tilde[, g] * b[, g] * X )
+        den_mu <- sum( z_tilde[, g] * b[, g] )
+
+        mu[g, ] <- num_mu / den_mu
+
+        beta[g, ] <- 0
+      }
 
       #++++ M-step: Sigma (dispersion) ++++#
 
@@ -1218,8 +1187,7 @@ MGHM_complete_data <- function(
 
       #++++ M-step: lambda (index) and omega (concentration) ++++#
 
-      for (s in 1:2) {
-
+      if (model %in% c('GH', 'SGH')) {
         if (c_bar[g] == 0) {
           lambda[g] <- 0
         } else {
@@ -1228,19 +1196,30 @@ MGHM_complete_data <- function(
 
           lambda[g] <- c_bar[g] * lambda[g] / grad_lambda
         }
+      }
 
-        grad_omega <- numDeriv::grad(q_func, x = omega[g], lambda = lambda[g],
-                                     a_bar = a_bar[g], b_bar = b_bar[g], c_bar = c_bar[g],
-                                     method = 'Richardson', method.args = deriv_ctrl)
+      if (model %in% c('NIG', 'SNIG')) {
+        lambda[g] <- -1/2
+      }
 
-        hess_omega <- numDeriv::hessian(q_func, x = omega[g], lambda = lambda[g],
-                                        a_bar = a_bar[g], b_bar = b_bar[g], c_bar = c_bar[g],
-                                        method = 'Richardson', method.args = deriv_ctrl)
+      if (model == 'HUM') {
+        lambda[g] <- 1
+      }
 
-        if (omega[g] - grad_omega / hess_omega > 0) {
-          omega[g] <- omega[g] - grad_omega / hess_omega
-        }
+      if (model %in% c('H', 'SH')) {
+        lambda[g] <- -(d + 1)/2
+      }
 
+      grad_omega <- numDeriv::grad(q_func, x = omega[g], lambda = lambda[g],
+                                   a_bar = a_bar[g], b_bar = b_bar[g], c_bar = c_bar[g],
+                                   method = 'Richardson', method.args = deriv_ctrl)
+
+      hess_omega <- numDeriv::hessian(q_func, x = omega[g], lambda = lambda[g],
+                                      a_bar = a_bar[g], b_bar = b_bar[g], c_bar = c_bar[g],
+                                      method = 'Richardson', method.args = deriv_ctrl)
+
+      if (omega[g] - grad_omega / hess_omega > 0) {
+        omega[g] <- omega[g] - grad_omega / hess_omega
       }
 
     }
@@ -1248,13 +1227,12 @@ MGHM_complete_data <- function(
     #++++ Observed Log-likelihood ++++#
 
     for (g in 1:G) {
-      dens[, g] <- dGH(X, mu = mu[g, ], Sigma = Sigma[, , g], beta = beta[g, ], lambda = lambda[g], omega = omega[g])
+      log_dens[, g] <- dGH(X, mu = mu[g, ], Sigma = Sigma[, , g], beta = beta[g, ], lambda = lambda[g], omega = omega[g], log = TRUE)
     }
 
-    lik                   <- dens %*% py
-    lik[lik <= 10^(-323)] <- 10^(-323)
-    final_loglik          <- sum(log(lik))
-    loglik                <- c(loglik, final_loglik)
+    log_py_dens  <- sweep(log_dens, 2, log(py), FUN = '+')
+    final_loglik <- sum( apply(log_py_dens, 1, log_sum_exp) )
+    loglik       <- c(loglik, final_loglik)
 
     #++++ Update progress ++++#
 
@@ -1291,6 +1269,20 @@ MGHM_complete_data <- function(
     lambda = G,
     omega  = G
   )
+
+  if (model %in% c('NIG', 'H')) {
+    npar$lambda <- 0
+  }
+
+  if (model %in% c('SNIG', 'HUM', 'SH')) {
+    npar$beta   <- 0
+    npar$lambda <- 0
+  }
+
+  if (model == 'SGH') {
+    npar$beta <- 0
+  }
+
   npar$total <- Reduce('+', npar)
 
   #----------------------------#
@@ -1340,34 +1332,34 @@ MGHM_complete_data <- function(
   }
 
   output <- list(
-    model         = 'GH_complete_data',
-    pi            = py,
-    mu            = mu,
-    Sigma         = Sigma,
+    model        = paste(model, '_complete_data', sep = ''),
+    pi           = py,
+    mu           = mu,
+    Sigma        = Sigma,
     beta         = beta,
-    lambda        = lambda,
-    omega         = omega,
-    z_tilde       = z_tilde,
-    clusters      = clusters,
-    data          = X,
-    complete      = complete.cases(X),
-    npar          = npar,
-    max_iter      = max_iter,
-    iter_stop     = iter,
-    final_loglik  = final_loglik,
-    loglik        = loglik,
-    AIC           = AIC,
-    BIC           = BIC,
-    KIC           = KIC,
-    KICc          = KICc,
-    AIC3          = AIC3,
-    CAIC          = CAIC,
-    AICc          = AICc,
-    ent           = ent,
-    ICL           = ICL,
-    AWE           = AWE,
-    CLC           = CLC,
-    init_method   = init_method
+    lambda       = lambda,
+    omega        = omega,
+    z_tilde      = z_tilde,
+    clusters     = clusters,
+    data         = X,
+    complete     = !is.na(X),
+    npar         = npar,
+    max_iter     = max_iter,
+    iter_stop    = iter,
+    final_loglik = final_loglik,
+    loglik       = loglik,
+    AIC          = AIC,
+    BIC          = BIC,
+    KIC          = KIC,
+    KICc         = KICc,
+    AIC3         = AIC3,
+    CAIC         = CAIC,
+    AICc         = AICc,
+    ent          = ent,
+    ICL          = ICL,
+    AWE          = AWE,
+    CLC          = CLC,
+    init_method  = init_method
   )
   class(output) <- 'MixtureMissing'
 
@@ -1387,7 +1379,8 @@ dGH <- function(
     Sigma  = diag(d),      # dispersion
     beta   = rep(0, d),    # skewness
     lambda = 0.5,          # index
-    omega  = 1             # concentration
+    omega  = 1,            # concentration
+    log    = FALSE
 ) {
 
   #----------------------#
@@ -1446,10 +1439,12 @@ dGH <- function(
   res <- res + omega - log(besselK(omega, nu = lambda, expon.scaled = TRUE))
   res <- res + X_centrd %*% Sigma_inv %*% beta
 
-  dens <- c(exp(res))
-  dens[dens <= 10^(-323)] <- 10^(-323)
+  if (!log) {
+    res <- c(exp(res))
+    res[res <= 10^(-323)] <- 10^(-323)
+  }
 
-  return(dens)
+  return(res)
 
   # lvx <- (lambda - d/2) * log(s1) + X_centrd %*% Sigma_inv %*% beta
   # lvx <- lvx + log(besselK(s1, nu = lambda - d/2, expon.scaled = TRUE)) - s1
@@ -1518,6 +1513,4 @@ Rlambda <- function (x, lambda = NULL)  {
 
   return(val)
 }
-
-
 

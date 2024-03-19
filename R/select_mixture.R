@@ -19,7 +19,8 @@
 #'   See the details section for a list of available distributions. However, all distributions
 #'   will be considered by default.
 #' @param criterion A character string indicating the information criterion for model
-#'   selection. See the details section for a list of available information criteria.
+#'   selection. "BIC" is used by default. See the details section for a list of available
+#'   information criteria.
 #' @param max_iter (optional) A numeric value giving the maximum number of
 #'   iterations each EM algorithm is allowed to use; 20 by default.
 #' @param epsilon (optional) A number specifying the epsilon value for the
@@ -77,80 +78,14 @@
 #'   \item CLC - Classification likelihood criterion
 #' }
 #'
-#' @return If the best model is CN, the function returns an object of class \code{MixtureMissing} with
-#'   \item{model}{The model used to fit the data set.}
-#'   \item{pi}{Mixing proportions.}
-#'   \item{mu}{Component location vectors.}
-#'   \item{Sigma}{Component dispersion matrices.}
-#'   \item{alpha}{Component proportions of good observations.}
-#'   \item{eta}{Component degrees of contamination.}
-#'   \item{z_tilde}{An \eqn{n} by \eqn{G} matrix where each row indicates the expected
-#'     probabilities that the corresponding observation belongs to each cluster.}
-#'   \item{v_tilde}{An \eqn{n} by \eqn{G} matrix where each row indicates the expected
-#'     probabilities that the corresponding observation is good with respect
-#'     to each cluster.}
-#'   \item{clusters}{A numeric vector of length \eqn{n} indicating cluster
-#'     memberships determined by the model.}
-#'   \item{outliers}{A logical vector of length \eqn{n} indicating observations that are outliers.}
-#'   \item{data}{The original data set if it is complete; otherwise, this is
-#'     the data set with missing values imputed by appropriate expectations.}
-#'   \item{complete}{A logical vector of length \eqn{n} indicating which observation(s)
-#'     have no missing values.}
-#'   \item{npar}{The breakdown of the number of parameters to estimate.}
-#'   \item{max_iter}{Maximum number of iterations allowed in the EM algorithm.}
-#'   \item{iter_stop}{The actual number of iterations needed when fitting the
-#'     data set.}
-#'   \item{final_loglik}{The final value of log-likelihood.}
-#'   \item{loglik}{All the values of log-likelihood.}
-#'   \item{AIC}{Akaike information criterion.}
-#'   \item{BIC}{Bayesian information criterion.}
-#'   \item{KIC}{Kullback information criterion.}
-#'   \item{KICc}{Corrected Kullback information criterion.}
-#'   \item{AIC3}{Modified AIC.}
-#'   \item{CAIC}{Bozdogan's consistent AIC.}
-#'   \item{AICc}{Small-sample version of AIC.}
-#'   \item{ent}{Entropy.}
-#'   \item{ICL}{Integrated Completed Likelihood criterion.}
-#'   \item{AWE}{Approximate weight of evidence.}
-#'   \item{CLC}{Classification likelihood criterion.}
-#'   \item{init_method}{The initialization method used in model fitting.}
-#' If the best model is GH, NIG, SNIG, SC, C, St, t, N, SGH, HUM, H, or SH,
-#' the function returns an object of class \code{MixtureMissing} with
-#'   \item{model}{The model used to fit the data set.}
-#'   \item{pi}{Mixing proportions.}
-#'   \item{mu}{Component location vectors.}
-#'   \item{Sigma}{Component dispersion matrices.}
-#'   \item{beta}{Component skewness vectors. Only available if \code{model} is GH, NIG, SNIG, SC, SGH, HUM, H, or SH; NULL otherwise.}
-#'   \item{lambda}{Component index parameters. Only available if \code{model} is GH, NIG, SNIG, SGH, HUM, H, or SH; NULL otherwise.}
-#'   \item{omega}{Component concentration parameters. Only available if \code{model} is GH, NIG, SNIG, SGH, HUM, H, or SH; NULL otherwise.}
-#'   \item{df}{Component degrees of freedom. Only available if \code{model} is St or t; NULL otherwise.}
-#'   \item{z_tilde}{An \eqn{n} by \eqn{G} matrix where each row indicates the expected
-#'     probabilities that the corresponding observation belongs to each cluster.}
-#'   \item{clusters}{A numeric vector of length \eqn{n} indicating cluster
-#'     memberships determined by the model.}
-#'   \item{outliers}{A logical vector of length \eqn{n} indicating observations that are outliers. Only available if \code{model} is t}
-#'   \item{data}{The original data set if it is complete; otherwise, this is
-#'     the data set with missing values imputed by appropriate expectations.}
-#'   \item{complete}{A logical vector of length \eqn{n} indicating which observation(s)
-#'     have no missing values.}
-#'   \item{npar}{The breakdown of the number of parameters to estimate.}
-#'   \item{max_iter}{Maximum number of iterations allowed in the EM algorithm.}
-#'   \item{iter_stop}{The actual number of iterations needed when fitting the
-#'     data set.}
-#'   \item{final_loglik}{The final value of log-likelihood.}
-#'   \item{loglik}{All the values of log-likelihood.}
-#'   \item{AIC}{Akaike information criterion.}
-#'   \item{BIC}{Bayesian information criterion.}
-#'   \item{KIC}{Kullback information criterion.}
-#'   \item{KICc}{Corrected Kullback information criterion.}
-#'   \item{AIC3}{Modified AIC.}
-#'   \item{CAIC}{Bozdogan's consistent AIC.}
-#'   \item{AICc}{Small-sample version of AIC.}
-#'   \item{ent}{Entropy.}
-#'   \item{ICL}{Integrated Completed Likelihood criterion.}
-#'   \item{AWE}{Approximate weight of evidence.}
-#'   \item{CLC}{Classification likelihood criterion.}
-#'   \item{init_method}{The initialization method used in model fitting.}
+#' @return A list with
+#'   \item{best_mod}{An object of class \code{MixtureMissing} corresponding to the best model.}
+#'   \item{all_mod}{A list of objects of class \code{MixtureMissing} corresponding to all models of consideration.
+#'     The list is in the order of \code{model}.}
+#'   \item{criterion}{A numeric vector containing the chosen information criterion values of all models of consideration.
+#'     The vector is in the order of best-to-worst models.}
+#' Each object of class \code{MixtureMissing} have slots depending on the fitted model. See
+#' the returned value of \link{MCNM} and \link{MGHM}.
 #'
 #' @references
 #' Browne, R. P. and McNicholas, P. D. (2015). A mixture of generalized hyperbolic distributions.
@@ -168,19 +103,12 @@
 #' X <- bankruptcy[, 2:3]
 #' mod <- select_mixture(X, G = 2, model = c('CN', 'GH', 'St'), criterion = 'BIC', max_iter = 10)
 #'
-#' summary(mod)
-#' plot(mod)
-#'
 #' #++++ With missing values ++++#
 #'
 #' set.seed(1234)
 #'
 #' X <- hide_values(bankruptcy[, 2:3], prop_cases = 0.1)
 #' mod <- select_mixture(X, G = 2, model = c('CN', 'GH', 'St'), criterion = 'BIC', max_iter = 10)
-#'
-#' summary(mod)
-#' plot(mod)
-#'
 #'
 #' @import numDeriv Bessel
 #' @importFrom stats complete.cases cov cutree dist dnorm hclust kmeans
@@ -259,12 +187,12 @@ select_mixture <- function(
   m_codes <- model
 
   n_models     <- length(model)
-  infos        <- rep(NA, n_models)
+  infos        <- rep(NA_real_, n_models)
   names(infos) <- model
 
-  #---------------------#
-  #    Model Fitting    #
-  #---------------------#
+  #--------------------------------#
+  #    Parameter Initialization    #
+  #--------------------------------#
 
   init_method <- match.arg(init_method)
 
@@ -294,18 +222,23 @@ select_mixture <- function(
 
   }
 
-  #++++ Model Fitting ++++#
+  #---------------------#
+  #    Model Fitting    #
+  #---------------------#
 
   if (progress) {
     cat('\nModel Fitting:\n')
   }
 
+  allmod <- vector('list', n_models)
+
   for (j in 1:n_models) {
+
+    #++++ Fit each model ++++#
 
     if (model[j] == 'CN') {
 
       mod <- tryCatch({
-
         MCNM(
           X           = X,
           G           = G,
@@ -316,13 +249,11 @@ select_mixture <- function(
           eta_min     = eta_min,
           progress    = FALSE
         )
-
       }, error = function(err) { return(NULL) })
 
     } else {
 
       mod <- tryCatch({
-
         MGHM(
           X              = X,
           G              = G,
@@ -335,10 +266,13 @@ select_mixture <- function(
           deriv_ctrl     = deriv_ctrl,
           progress       = FALSE
         )
-
       }, error = function(err) { return(NULL) })
 
     }
+
+    allmod[[j]] <- mod
+
+    #++++ Compare to the current best model ++++#
 
     if (!is.null(mod)) {
       infos[j] <- mod[[criterion]]
@@ -357,6 +291,8 @@ select_mixture <- function(
     #   }
     # }
 
+    #++++ Update progress ++++#
+
     if (progress) {
       cat('  ')
       if (is.null(mod)) {
@@ -368,7 +304,11 @@ select_mixture <- function(
       }
     }
 
-  }
+  }    # end for (j in 1:n_models)
+
+  #--------------------------------------------#
+  #    Summarize Results and Prepare Output    #
+  #--------------------------------------------#
 
   # if (progress) {
   #   if (sum(is.na(infos)) == n_models) {
@@ -389,10 +329,14 @@ select_mixture <- function(
     }
 
     cat('\nModel rank according to ', criterion, ':', sep = '')
-    infos <- sort(infos)
+    infos <- sort(infos, na.last = TRUE)
     for(j in 1:length(infos)){
       cat('\n')
-      cat('  ', j, '. ', m_names[match(names(infos[j]), m_codes)], ': ', round(infos[j], digits = 4), sep = '')
+      if (!is.na(infos[j])) {
+        cat('  ', j, '. ', m_names[match(names(infos[j]), m_codes)], ': ', round(infos[j], digits = 4), sep = '')
+      } else {
+        cat('  ', j, '. ', m_names[match(names(infos[j]), m_codes)], ': Failed', sep = '')
+      }
     }
     cat('\n\n')
   }
@@ -404,6 +348,14 @@ select_mixture <- function(
   #
   # return(output)
 
-  return(best_mod)
+  names(allmod) <- model
+
+  output <- list(
+    best_mod  = best_mod,
+    all_mod   = allmod,
+    criterion = infos
+  )
+
+  return(output)
 
 }

@@ -97,8 +97,8 @@ cluster_pars <- function(
     clusters <- clusters[cc]
   }
 
-  mu    <- matrix(NA, nrow = G, ncol = d)
-  Sigma <- array(NA, dim = c(d, d, G))
+  mu    <- matrix(NA_real_, nrow = G, ncol = d)
+  Sigma <- array(NA_real_, dim = c(d, d, G))
 
   for (g in 1:G) {
     mu[g, ] <- colMeans(X[clusters == g, , drop = FALSE])
@@ -205,7 +205,7 @@ cluster_pars <- function(
 initialize_clusters <- function(
     X,
     G,
-    init_method = c("kmedoids", "kmeans", "hierarchical", "manual"),
+    init_method = c("kmedoids", "kmeans", "hierarchical", "mclust", "manual"),
     clusters    = NULL
 ) {
 
@@ -290,6 +290,32 @@ initialize_clusters <- function(
       clusters <- cutree(hc, k = G)
     }
 
+    #---------------------------------#
+    #    Gaussian Mixture (mclust)    #
+    #---------------------------------#
+
+    if (init_method == 'mclust') {
+
+      if (d == 1) {
+        mc <- mclust::Mclust(X, G = G, modelNames = 'V', verbose = FALSE)
+
+        pi       <- mc$parameters$pro
+        mu       <- matrix(mc$parameters$mean, nrow = G, ncol = 1)
+        Sigma    <- array(mc$parameters$variance$sigma, dim = c(1, 1, G))
+        clusters <- mc$classification
+      }
+
+      if (d > 1) {
+        mc <- mclust::Mclust(X, G = G, modelNames = 'VVV', verbose = FALSE)
+
+        pi       <- mc$parameters$pro
+        mu       <- t(mc$parameters$mean)
+        Sigma    <- mc$parameters$variance$sigma
+        clusters <- mc$classification
+      }
+
+    }
+
     #-------------------------------#
     #    User-Defined Clustering    #
     #-------------------------------#
@@ -316,17 +342,19 @@ initialize_clusters <- function(
 
   }
 
-  pars <- cluster_pars(X, clusters)
+  if (init_method != 'mclust') {
+    pars <- cluster_pars(X, clusters)
 
-  pi <- pars$pi
+    pi <- pars$pi
 
-  if (init_method == 'kmedoids') {
-    mu <- kmed$medoids
-  } else {
-    mu <- pars$mu
+    if (init_method == 'kmedoids') {
+      mu <- kmed$medoids
+    } else {
+      mu <- pars$mu
+    }
+
+    Sigma <- pars$Sigma
   }
-
-  Sigma <- pars$Sigma
 
   #---------------------#
   #    Prepare Output   #
@@ -540,6 +568,7 @@ hide_values <- function(
 #' patterns_matr <- generate_patterns(4)
 #' data_missing <- ampute(iris[1:4], prop = 0.5, patterns = patterns_matr)$amp
 #'
+#' @importFrom mice ampute
 #' @export
 generate_patterns <- function(d) {
 
@@ -760,4 +789,17 @@ Tr <- function(X) {
     sum(diag(X))
   )
 
+}
+
+###########################################################################
+###                                                                     ###
+###                             Log-Sum-Exp                             ###
+###                                                                     ###
+###########################################################################
+
+log_sum_exp <- function(l) {
+
+  l_max <- max(l)
+
+  return( l_max + log(sum(exp(l - l_max))) )
 }

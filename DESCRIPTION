@@ -2,7 +2,7 @@ Package: MixtureMissing
 Type: Package
 Title: Robust and Flexible Model-Based Clustering for Data Sets with
         Missing Values at Random
-Version: 3.0.1
+Version: 3.0.2
 Authors@R: 
   c(person(given = "Hung",
            family = "Tong",
@@ -19,8 +19,8 @@ Description: Implementations of various robust and flexible model-based clusteri
     Skew-Cauchy, Cauchy, Skew-t, Student's t, Normal, Symmetric Generalized Hyperbolic, Hyperbolic Univariate Marginals, 
     Hyperbolic, and Symmetric Hyperbolic.
 Imports: mvtnorm (>= 1.1-2), mnormt (>= 2.0.2), cluster (>= 2.1.2),
-        MASS (>= 7.3), numDeriv (>= 8.1.1), Bessel (>= 0.6.0)
-Suggests: mice (>= 3.10.0)
+        MASS (>= 7.3), numDeriv (>= 8.1.1), Bessel (>= 0.6.0), mclust
+        (>= 5.0.0), mice (>= 3.10.0)
 License: GPL (>= 2)
 Encoding: UTF-8
 LazyData: true
@@ -28,8 +28,8 @@ Repository: CRAN
 RoxygenNote: 7.2.3
 Depends: R (>= 3.5.0)
 NeedsCompilation: no
-Packaged: 2024-01-17 17:37:28 UTC; cristina
+Packaged: 2024-03-19 21:53:12 UTC; hungt
 Author: Hung Tong [aut, cre],
   Cristina Tortora [aut, ths, dgs]
 Maintainer: Hung Tong <hungtongmx@gmail.com>
-Date/Publication: 2024-01-17 17:52:06 UTC
+Date/Publication: 2024-03-19 22:10:13 UTC

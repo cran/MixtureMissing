@@ -7,7 +7,7 @@
 initialize_clusters(
   X,
   G,
-  init_method = c("kmedoids", "kmeans", "hierarchical", "manual"),
+  init_method = c("kmedoids", "kmeans", "hierarchical", "mclust", "manual"),
   clusters = NULL
 )
 }

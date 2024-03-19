@@ -9,7 +9,7 @@ MNM_incomplete_data <- function(
     G,
     max_iter     = 20,
     epsilon      = 0.01,
-    init_method  = c("kmedoids", "kmeans", "hierarchical", "manual"),
+    init_method  = c("kmedoids", "kmeans", "hierarchical", "mclust", "manual"),
     clusters     = NULL,
     equal_prop   = FALSE,
     identity_cov = FALSE,
@@ -34,28 +34,24 @@ MNM_incomplete_data <- function(
     Im[[j]] <- which( apply(R, 1, function(r) all(r == M[j, ]) ) )
   }
 
-  z           <- matrix(NA, nrow = n, ncol = G)
-  z_tilde     <- matrix(NA, nrow = n, ncol = G)
+  z           <- matrix(NA_real_, nrow = n, ncol = G)
+  z_tilde     <- matrix(NA_real_, nrow = n, ncol = G)
   X_tilde     <- array(rep(X, G), dim = c(n, d, G))
-  Sigma_tilde <- array(NA, dim = c(d, d, n, G))
+  Sigma_tilde <- array(NA_real_, dim = c(d, d, n, G))
 
-  py    <- rep(NA, G)
-  mu    <- matrix(NA, nrow = G, ncol = d)
-  Sigma <- array(NA, dim = c(d, d, G))
+  py    <- rep(NA_real_, G)
+  mu    <- matrix(NA_real_, nrow = G, ncol = d)
+  Sigma <- array(NA_real_, dim = c(d, d, G))
 
-  dens   <- matrix(NA, nrow = n, ncol = G)
-  iter   <- 0
-  loglik <- NULL
+  log_dens <- matrix(NA_real_, nrow = n, ncol = G)
+  iter     <- 0
+  loglik   <- NULL
 
   #--------------------------------#
   #    Parameter Initialization    #
   #--------------------------------#
 
   init_method <- match.arg(init_method)
-
-  if (progress) {
-    cat('\nInitialization:', init_method, '\n')
-  }
 
   X_imp <- mean_impute(X)
 
@@ -231,15 +227,14 @@ MNM_incomplete_data <- function(
         mu_o     <- mu[g, o]
         Sigma_oo <- Sigma[o, o, g]
 
-        dens[Im[[j]], g] <- mvtnorm::dmvnorm(Xo_j, mean = mu_o, sigma = as.matrix(Sigma_oo))
+        log_dens[Im[[j]], g] <- mvtnorm::dmvnorm(Xo_j, mean = mu_o, sigma = as.matrix(Sigma_oo), log = TRUE)
 
       }
     }
 
-    lik                   <- dens %*% py
-    lik[lik <= 10^(-323)] <- 10^(-323)
-    final_loglik          <- sum(log(lik))
-    loglik                <- c(loglik, final_loglik)
+    log_py_dens  <- sweep(log_dens, 2, log(py), FUN = '+')
+    final_loglik <- sum( apply(log_py_dens, 1, log_sum_exp) )
+    loglik       <- c(loglik, final_loglik)
 
     #++++ Update Progress ++++#
 
@@ -335,7 +330,7 @@ MNM_incomplete_data <- function(
     z_tilde       = z_tilde,
     clusters      = clusters,
     data          = X_imputed,
-    complete      = complete,
+    complete      = !is.na(X),
     npar          = npar,
     max_iter      = max_iter,
     iter_stop     = iter,
@@ -371,7 +366,7 @@ MNM_complete_data <- function(
     G,
     max_iter     = 20,
     epsilon      = 0.01,
-    init_method  = c("kmedoids", "kmeans", "hierarchical", "manual"),
+    init_method  = c("kmedoids", "kmeans", "hierarchical", "mclust", "manual"),
     clusters     = NULL,
     equal_prop   = FALSE,
     identity_cov = FALSE,
@@ -385,27 +380,23 @@ MNM_complete_data <- function(
   n <- nrow(X)
   d <- ncol(X)
 
-  z           <- matrix(NA, nrow = n, ncol = G)
-  z_tilde     <- matrix(NA, nrow = n, ncol = G)
-  Sigma_tilde <- array(NA, dim = c(d, d, n, G))
+  z           <- matrix(NA_real_, nrow = n, ncol = G)
+  z_tilde     <- matrix(NA_real_, nrow = n, ncol = G)
+  Sigma_tilde <- array(NA_real_, dim = c(d, d, n, G))
 
-  py    <- rep(NA, G)
-  mu    <- matrix(NA, nrow = G, ncol = d)
-  Sigma <- array(NA, dim = c(d, d, G))
+  py    <- rep(NA_real_, G)
+  mu    <- matrix(NA_real_, nrow = G, ncol = d)
+  Sigma <- array(NA_real_, dim = c(d, d, G))
 
-  dens   <- matrix(NA, nrow = n, ncol = G)
-  iter   <- 0
-  loglik <- NULL
+  log_dens <- matrix(NA_real_, nrow = n, ncol = G)
+  iter     <- 0
+  loglik   <- NULL
 
   #--------------------------------#
   #    Parameter Initialization    #
   #--------------------------------#
 
   init_method <- match.arg(init_method)
-
-  if (progress) {
-    cat('\nInitialization:', init_method, '\n')
-  }
 
   if (G == 1) {
 
@@ -496,13 +487,12 @@ MNM_complete_data <- function(
     #++++ Observed Log-likelihood ++++#
 
     for (g in 1:G) {
-      dens[, g] <- mvtnorm::dmvnorm(X, mean = mu[g, ], sigma = as.matrix(Sigma[, , g]))
+      log_dens[, g] <- mvtnorm::dmvnorm(X, mean = mu[g, ], sigma = as.matrix(Sigma[, , g]), log = TRUE)
     }
 
-    lik                   <- dens %*% py
-    lik[lik <= 10^(-323)] <- 10^(-323)
-    final_loglik          <- sum(log(lik))
-    loglik                <- c(loglik, final_loglik)
+    log_py_dens  <- sweep(log_dens, 2, log(py), FUN = '+')
+    final_loglik <- sum( apply(log_py_dens, 1, log_sum_exp) )
+    loglik       <- c(loglik, final_loglik)
 
     #++++ Update progress ++++#
 
@@ -587,7 +577,7 @@ MNM_complete_data <- function(
     z_tilde       = z_tilde,
     clusters      = clusters,
     data          = X,
-    complete      = complete.cases(X),
+    complete      = !is.na(X),
     npar          = npar,
     max_iter      = max_iter,
     iter_stop     = iter,

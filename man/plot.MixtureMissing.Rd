@@ -2,12 +2,44 @@
 % Please edit documentation in R/MixtureMissing.R
 \name{plot.MixtureMissing}
 \alias{plot.MixtureMissing}
-\title{Mixture Missing Plotting}
+\title{MixtureMissing Plotting}
 \usage{
-\method{plot}{MixtureMissing}(x, ...)
+\method{plot}{MixtureMissing}(
+  x,
+  what = c("classification", "missing", "parallel", "density"),
+  nlevels = 15,
+  drawlabels = TRUE,
+  addpoints = TRUE,
+  cex.point = 1,
+  cex.axis = 1,
+  cex.labels = 2,
+  lwd = 1,
+  col_line = "gray",
+  ...
+)
 }
 \arguments{
-\item{x}{A \code{MixtureMissing} object.}
+\item{x}{A \code{MixtureMissing} object or an output of \link[MixtureMissing]{select_mixture}.
+In the latter, only the best model will be considered.}
+
+\item{what}{A string or a character vector specifying the desired plots. See the details section for
+a list of available plots.}
+
+\item{nlevels}{Number of contour levels desired; 15 by default.}
+
+\item{drawlabels}{Contour levels are labelled if \code{TRUE}.}
+
+\item{addpoints}{Colored points showing cluster memberships are added if \code{TRUE}.}
+
+\item{cex.point}{A numerical value giving the amount by which data points should be magnified relative to the default.}
+
+\item{cex.axis}{The magnification to be used for axis annotation.}
+
+\item{cex.labels}{A numerical value to control the character size of variable labels.}
+
+\item{lwd}{The contour line width, a positive number, defaulting to 1.}
+
+\item{col_line}{The color of contour; "gray" by default.}
 
 \item{...}{Arguments to be passed to methods, such as graphical parameters.}
 }
@@ -15,26 +47,30 @@
 No return value, called to visualize the fitted model's results
 }
 \description{
-Provide a parallel plot of up to the first 10 variables of a multivariate
-data sets, and a line plot showing log-likelihood values at every iteration
-during the EM algorithm. When applicable, pairwise scatter plots highlighting
-outliers denoted by triangles and/or observations whose values are missing but are replaced by
-expectations obtained in the EM algorithm will be included.
+Provide four model-based clustering plots for a \code{MixtureMissing} object. The options
+include (1) pairwise scatter plots showing cluster memberships and highlighting outliers denoted by triangles;
+(2) pairwise scatter plots highlighting in red observations whose values are missing but are replaced by
+expectations obtained in the EM algorithm; (3) parallel plot of up to the first 10 variables of a multivariate
+data set; and (4) plots of estimated density in the form of contours. A single or multiple options
+can be specified. In the latter case, interactive mode will be triggered for the user to choose.
+}
+\details{
+The plots that can be retrieved include
+\itemize{
+  \item If \code{what = "classification"} - Pairwise scatter plots showing cluster memberships
+     and highlighting outliers denoted by triangles.
+  \item If \code{what = "missing"} - Pairwise scatter plots highlighting in red observations
+    whose values are missing but are replaced by expectations obtained in the EM algorithm.
+  \item If \code{what = "parallel"} - Parallel plot of up to the first 10 variables of a multivariate
+    data set.
+  \item If \code{what = "density"} - Plots of estimated density in the form of contours.
+}
 }
 \examples{
 
-data('auto')
-
-#++++ With no missing values ++++#
-
-X <- auto[, c('engine_size', 'city_mpg', 'highway_mpg')]
-mod <- MCNM(X, G = 2, init_method = 'kmedoids', max_iter = 10)
-plot(mod)
-
-#++++ With missing values ++++#
-
-X <- auto[, c('normalized_losses', 'horsepower', 'highway_mpg', 'price')]
-mod <- MCNM(X, G = 2, init_method = 'kmedoids', max_iter = 10)
-plot(mod)
+set.seed(123)
+X <- hide_values(iris[, 1:4], n_cases = 20)
+mod <- MCNM(X, G = 2, max_iter = 10)
+plot(mod, what = 'classification')
 
 }

@@ -14,15 +14,17 @@
 #'
 #' @param X An \eqn{n} x \eqn{d} matrix or data frame where \eqn{n} is the number of
 #'   observations and \eqn{d} is the number of variables.
-#' @param G The number of clusters, which must be at least 1. If \code{G = 1}, then
-#'   both \code{init_method} and \code{clusters} are ignored.
+#' @param G An integer vector specifying the numbers of clusters, which must be at least 1.
+#' @param criterion A character string indicating the information criterion for model
+#'   selection. "BIC" is used by default. See the details section for a list of available
+#'   information criteria.
 #' @param max_iter (optional) A numeric value giving the maximum number of
 #'   iterations each EM algorithm is allowed to use; 20 by default.
 #' @param epsilon (optional) A number specifying the epsilon value for the
 #'   Aitken-based stopping criterion used in the EM algorithm: 0.01 by default.
 #' @param init_method (optional) A string specifying the method to initialize
 #'   the EM algorithm. "kmedoids" clustering is used by default. Alternative
-#'   methods include "kmeans", "hierarchical", and "manual". When "manual" is chosen,
+#'   methods include "kmeans", "hierarchical", "mclust", and "manual". When "manual" is chosen,
 #'   a vector \code{clusters} of length \eqn{n} must be specified. If the data set is
 #'   incomplete, missing values will be first filled based on the mean imputation method.
 #' @param clusters (optional) A numeric vector of length \eqn{n} that specifies the initial
@@ -34,6 +36,19 @@
 #' @param progress (optional) A logical value indicating whether the
 #'   fitting progress should be displayed; TRUE by default.
 #'
+#' @details Available information criteria include
+#' \itemize{
+#'  \item AIC - Akaike information criterion
+#'   \item BIC - Bayesian information criterion
+#'   \item KIC - Kullback information criterion
+#'   \item KICc - Corrected Kullback information criterion
+#'   \item AIC3 - Modified AIC
+#'   \item CAIC - Bozdogan's consistent AIC
+#'   \item AICc - Small-sample version of AIC
+#'   \item ICL - Integrated Completed Likelihood criterion
+#'   \item AWE - Approximate weight of evidence
+#'   \item CLC - Classification likelihood criterion
+#' }
 #' @return An object of class \code{MixtureMissing} with:
 #'   \item{model}{The model used to fit the data set.}
 #'   \item{pi}{Mixing proportions.}
@@ -51,8 +66,7 @@
 #'   \item{outliers}{A logical vector of length \eqn{n} indicating observations that are outliers.}
 #'   \item{data}{The original data set if it is complete; otherwise, this is
 #'     the data set with missing values imputed by appropriate expectations.}
-#'   \item{complete}{A logical vector of length \eqn{n} indicating which observation(s)
-#'     have no missing values.}
+#'   \item{complete}{An \eqn{n} by \eqn{d} logical matrix indicating which cells have no missing values.}
 #'   \item{npar}{The breakdown of the number of parameters to estimate.}
 #'   \item{max_iter}{Maximum number of iterations allowed in the EM algorithm.}
 #'   \item{iter_stop}{The actual number of iterations needed when fitting the
@@ -105,9 +119,10 @@
 MCNM <- function(
     X,
     G,
+    criterion    = c('BIC', 'AIC', 'KIC', 'KICc', 'AIC3', 'CAIC', 'AICc', 'ICL', 'AWE', 'CLC'),
     max_iter     = 20,
     epsilon      = 0.01,
-    init_method  = c("kmedoids", "kmeans", "hierarchical", "manual"),
+    init_method  = c("kmedoids", "kmeans", "hierarchical", "mclust", "manual"),
     clusters     = NULL,
     eta_min      = 1.001,
     progress     = TRUE
@@ -116,14 +131,6 @@ MCNM <- function(
   #----------------------#
   #    Input checking    #
   #----------------------#
-
-  if (G < 1) {
-    stop('Number of clusters G must be at least 1')
-  }
-
-  if (G %% 1 != 0) {
-    stop('Number of clusters G must be an integer')
-  }
 
   if (is.data.frame(X)) {
     X <- as.matrix(X)
@@ -137,54 +144,155 @@ MCNM <- function(
     stop('X must be a numeric matrix, data frame or vector')
   }
 
+  G <- unique(G)
+
+  if (any(G < 1)) {
+    stop('Number of clusters G must be at least 1')
+  }
+
+  if (any(G %% 1 != 0)) {
+    stop('Number of clusters G must be an integer')
+  }
+
   #---------------------#
   #    Model Fitting    #
   #---------------------#
 
-  if (any(is.na(X))) {
+  criterion <- match.arg(criterion)
+  best_info <- Inf
+  best_mod  <- NULL
 
+  infos        <- rep(NA_real_, length(G))
+  names(infos) <- G
+
+  if ( any(is.na(X)) ) {
     if (ncol(X) < 2) {
       stop('If X contains NAs, X must be at least bivariate')
     }
 
     if (progress) {
       cat('\nMixture: Contaminated Normal (CN)\n')
-      cat('\nData Set: Incomplete\n')
+      cat('Data Set: Incomplete\n')
     }
-
-    mod <- MCNM_incomplete_data(
-      X            = X,
-      G            = G,
-      max_iter     = max_iter,
-      epsilon      = epsilon,
-      init_method  = init_method,
-      clusters     = clusters,
-      eta_min      = eta_min,
-      progress     = progress
-    )
-
   } else {
-
     if (progress) {
       cat('\nMixture: Contaminated Normal (CN)\n')
       cat('Data Set: Complete\n')
     }
-
-    mod <- MCNM_complete_data(
-      X            = X,
-      G            = G,
-      max_iter     = max_iter,
-      epsilon      = epsilon,
-      init_method  = init_method,
-      clusters     = clusters,
-      eta_min      = eta_min,
-      progress     = progress
-    )
-
   }
+
+  init_method <- match.arg(init_method)
+
+  if (progress) {
+    cat('Initialization:', init_method, '\n\n')
+  }
+
+  if (length(G) > 1 & init_method == 'manual') {
+    stop('Mannual initialization can only be done if length(G) is 1')
+  }
+
+  G_vec <- G
+  iter  <- 1
+
+  for (G in G_vec) {
+
+    #++++ Fit each model in G ++++#
+
+    if (progress) {
+      cat('G = ', G, sep = '')
+    }
+
+    if (any(is.na(X))) {
+
+      mod <- tryCatch({
+        MCNM_incomplete_data(
+          X            = X,
+          G            = G,
+          max_iter     = max_iter,
+          epsilon      = epsilon,
+          init_method  = init_method,
+          clusters     = clusters,
+          eta_min      = eta_min,
+          progress     = progress
+        )
+      }, error = function(err) { return(NULL) })
+
+    } else {
+
+      mod <- tryCatch({
+        MCNM_complete_data(
+          X            = X,
+          G            = G,
+          max_iter     = max_iter,
+          epsilon      = epsilon,
+          init_method  = init_method,
+          clusters     = clusters,
+          eta_min      = eta_min,
+          progress     = progress
+        )
+      }, error = function(err) { return(NULL) })
+
+    }    # end if ( any(is.na(X)) )
+
+    #++++ Compare to the current best model ++++#
+
+    if (!is.null(mod)) {
+      infos[iter] <- mod[[criterion]]
+
+      if (best_info > infos[iter]) {
+        best_info <- infos[iter]
+        best_mod  <- mod
+      }
+    }
+
+    #++++ Update progress ++++#
+
+    if (progress) {
+      if (is.null(mod)) {
+        cat('\nFitting G = ', G, ' was failed\n', sep = '')
+      } else {
+        cat('Fitting G = ', G, ' was successful\n', sep = '')
+      }
+    }
+
+    iter <- iter + 1
+
+  }    # end for (G in G_vec)
 
   if (progress) {
     cat('\n')
+  }
+
+  #--------------------------------------------#
+  #    Summarize Results and Prepare Output    #
+  #--------------------------------------------#
+
+  if (progress) {
+
+    if (length(G_vec) > 1) {
+      if (sum(is.na(infos)) == length(G_vec)) {
+        cat('The best mixture model cannot be determined\n')
+      } else {
+        cat('According to ', criterion, ', the best mixture model is based on G = ', G_vec[which.min(infos)], sep = '')
+      }
+
+      cat('\nModel rank according to ', criterion, ':', sep = '')
+      infos <- sort(infos, na.last = TRUE)
+      for(j in 1:length(infos)){
+        cat('\n')
+        if (!is.na(infos[j])) {
+          cat('  ', j, '. G = ', names(infos)[j], ': ', round(infos[j], digits = 4), sep = '')
+        } else {
+          cat('  ', j, '. G = ', names(infos)[j], ': Failed', sep = '')
+        }
+      }
+    } else {
+      if (!is.na(infos)) {
+        cat('The fitted mixture model with G = ', G, ' has ', criterion, ' = ', infos, sep = '')
+      }
+    }
+
+    cat('\n\n')
   }
 
   return(mod)
@@ -201,7 +309,7 @@ MCNM_incomplete_data <- function(
     G,
     max_iter     = 20,
     epsilon      = 0.01,
-    init_method  = c("kmedoids", "kmeans", "hierarchical", "manual"),
+    init_method  = c("kmedoids", "kmeans", "hierarchical", "mclust", "manual"),
     clusters     = NULL,
     eta_min      = 1.001,
     progress     = TRUE
@@ -225,33 +333,29 @@ MCNM_incomplete_data <- function(
     Im[[j]] <- which( apply(R, 1, function(r) all(r == M[j, ]) ) )
   }
 
-  z           <- matrix(NA, nrow = n, ncol = G)
-  z_tilde     <- matrix(NA, nrow = n, ncol = G)
-  v_tilde     <- matrix(NA, nrow = n, ncol = G)
-  w_tilde     <- matrix(NA, nrow = n, ncol = G)
-  zw_tilde    <- matrix(NA, nrow = n, ncol = G)
+  z           <- matrix(NA_real_, nrow = n, ncol = G)
+  z_tilde     <- matrix(NA_real_, nrow = n, ncol = G)
+  v_tilde     <- matrix(NA_real_, nrow = n, ncol = G)
+  w_tilde     <- matrix(NA_real_, nrow = n, ncol = G)
+  zw_tilde    <- matrix(NA_real_, nrow = n, ncol = G)
   X_tilde     <- array(rep(X, G), dim = c(n, d, G))
-  Sigma_tilde <- array(NA, dim = c(d, d, n, G))
+  Sigma_tilde <- array(NA_real_, dim = c(d, d, n, G))
 
-  py    <- rep(NA, G)
-  mu    <- matrix(NA, nrow = G, ncol = d)
-  Sigma <- array(NA, dim = c(d, d, G))
+  py    <- rep(NA_real_, G)
+  mu    <- matrix(NA_real_, nrow = G, ncol = d)
+  Sigma <- array(NA_real_, dim = c(d, d, G))
   alpha <- rep(0.6, G)
   eta   <- rep(1.4, G)
 
-  dens   <- matrix(NA, nrow = n, ncol = G)
-  iter   <- 0
-  loglik <- NULL
+  log_dens <- matrix(NA_real_, nrow = n, ncol = G)
+  iter     <- 0
+  loglik   <- NULL
 
   #--------------------------------#
   #    Parameter Initialization    #
   #--------------------------------#
 
   init_method <- match.arg(init_method)
-
-  if (progress) {
-    cat('\nInitialization:', init_method, '\n')
-  }
 
   X_imp <- X
   X_imp <- mean_impute(X)
@@ -431,7 +535,7 @@ MCNM_incomplete_data <- function(
 
       #++++ CM-Step 2: eta ++++#
 
-      delta_o <- rep(NA, n)
+      delta_o <- rep(NA_real_, n)
 
       for (j in 1:np) {
 
@@ -447,6 +551,10 @@ MCNM_incomplete_data <- function(
       eta[g]  <- eta_num / eta_den
       eta[g]  <- max(eta[g], eta_min)
 
+      if (eta[g] == eta_min) {
+        alpha[g] <- 0.999
+      }
+
     }
 
     #++++ Observed Log-Likelihood ++++#
@@ -461,16 +569,14 @@ MCNM_incomplete_data <- function(
         mu_o     <- mu[g, o]
         Sigma_oo <- Sigma[o, o, g]
 
-        dens[Im[[j]], g] <- dCN(Xo_j, mu = mu_o, Sigma = as.matrix(Sigma_oo), alpha = alpha[g], eta = eta[g])
+        log_dens[Im[[j]], g] <- log( dCN(Xo_j, mu = mu_o, Sigma = as.matrix(Sigma_oo), alpha = alpha[g], eta = eta[g]) )
 
       }
     }
 
-
-    lik                   <- dens %*% py
-    lik[lik <= 10^(-323)] <- 10^(-323)
-    final_loglik          <- sum(log(lik))
-    loglik                <- c(loglik, final_loglik)
+    log_py_dens  <- sweep(log_dens, 2, log(py), FUN = '+')
+    final_loglik <- sum( apply(log_py_dens, 1, log_sum_exp) )
+    loglik       <- c(loglik, final_loglik)
 
     #++++ Update Progress ++++#
 
@@ -581,7 +687,7 @@ MCNM_incomplete_data <- function(
     clusters      = clusters,
     outliers      = outliers,
     data          = X_imputed,
-    complete      = complete,
+    complete      = !is.na(X),
     npar          = npar,
     max_iter      = max_iter,
     iter_stop     = iter,
@@ -617,7 +723,7 @@ MCNM_complete_data <- function(
     G,
     max_iter     = 20,
     epsilon      = 0.01,
-    init_method  = c("kmedoids", "kmeans", "hierarchical", "manual"),
+    init_method  = c("kmedoids", "kmeans", "hierarchical", "mclust", "manual"),
     clusters     = NULL,
     eta_min      = 1.001,
     progress     = TRUE
@@ -630,32 +736,28 @@ MCNM_complete_data <- function(
   n <- nrow(X)
   d <- ncol(X)
 
-  z           <- matrix(NA, nrow = n, ncol = G)
-  z_tilde     <- matrix(NA, nrow = n, ncol = G)
-  v_tilde     <- matrix(NA, nrow = n, ncol = G)
-  w_tilde     <- matrix(NA, nrow = n, ncol = G)
-  zw_tilde    <- matrix(NA, nrow = n, ncol = G)
-  Sigma_tilde <- array(NA, dim = c(d, d, n, G))
+  z           <- matrix(NA_real_, nrow = n, ncol = G)
+  z_tilde     <- matrix(NA_real_, nrow = n, ncol = G)
+  v_tilde     <- matrix(NA_real_, nrow = n, ncol = G)
+  w_tilde     <- matrix(NA_real_, nrow = n, ncol = G)
+  zw_tilde    <- matrix(NA_real_, nrow = n, ncol = G)
+  Sigma_tilde <- array(NA_real_, dim = c(d, d, n, G))
 
-  py    <- rep(NA, G)
-  mu    <- matrix(NA, nrow = G, ncol = d)
-  Sigma <- array(NA, dim = c(d, d, G))
+  py    <- rep(NA_real_, G)
+  mu    <- matrix(NA_real_, nrow = G, ncol = d)
+  Sigma <- array(NA_real_, dim = c(d, d, G))
   alpha <- rep(0.6, G)
   eta   <- rep(1.4, G)
 
-  dens   <- matrix(NA, nrow = n, ncol = G)
-  iter   <- 0
-  loglik <- NULL
+  log_dens <- matrix(NA_real_, nrow = n, ncol = G)
+  iter     <- 0
+  loglik   <- NULL
 
   #--------------------------------#
   #    Parameter Initialization    #
   #--------------------------------#
 
   init_method <- match.arg(init_method)
-
-  if (progress) {
-    cat('\nInitialization:', init_method, '\n')
-  }
 
   if (G == 1) {
 
@@ -758,18 +860,21 @@ MCNM_complete_data <- function(
       eta[g]  <- eta_num / eta_den
       eta[g]  <- max(eta[g], eta_min)
 
+      if (eta[g] == eta_min) {
+        alpha[g] <- 0.999
+      }
+
     }
 
     #++++ Observed Log-Likelihood ++++#
 
     for (g in 1:G) {
-      dens[, g] <- dCN(X, mu = mu[g, ], Sigma = Sigma[, , g], alpha = alpha[g], eta = eta[g])
+      log_dens[, g] <- log( dCN(X, mu = mu[g, ], Sigma = Sigma[, , g], alpha = alpha[g], eta = eta[g]) )
     }
 
-    lik                   <- dens %*% py
-    lik[lik <= 10^(-323)] <- 10^(-323)
-    final_loglik          <- sum(log(lik))
-    loglik                <- c(loglik, final_loglik)
+    log_py_dens  <- sweep(log_dens, 2, log(py), FUN = '+')
+    final_loglik <- sum( apply(log_py_dens, 1, log_sum_exp) )
+    loglik       <- c(loglik, final_loglik)
 
     #++++ Update Progress ++++#
 
@@ -869,7 +974,7 @@ MCNM_complete_data <- function(
     clusters      = clusters,
     outliers      = outliers,
     data          = X,
-    complete      = complete.cases(X),
+    complete      = !is.na(X),
     npar          = npar,
     max_iter      = max_iter,
     iter_stop     = iter,
@@ -905,7 +1010,8 @@ dCN <- function(
     mu    = rep(0, d),    # location
     Sigma = diag(d),      # dispersion
     alpha = 0.99,         # proportion of good observations
-    eta   = 1.01          # degree of contamination
+    eta   = 1.01,         # degree of contamination
+    log   = FALSE
 ) {
 
   #----------------------#
@@ -958,5 +1064,3 @@ dCN <- function(
   return(dens)
 
 }
-
-

@@ -7,9 +7,10 @@
 MCNM(
   X,
   G,
+  criterion = c("BIC", "AIC", "KIC", "KICc", "AIC3", "CAIC", "AICc", "ICL", "AWE", "CLC"),
   max_iter = 20,
   epsilon = 0.01,
-  init_method = c("kmedoids", "kmeans", "hierarchical", "manual"),
+  init_method = c("kmedoids", "kmeans", "hierarchical", "mclust", "manual"),
   clusters = NULL,
   eta_min = 1.001,
   progress = TRUE
@@ -19,8 +20,11 @@ MCNM(
 \item{X}{An \eqn{n} x \eqn{d} matrix or data frame where \eqn{n} is the number of
 observations and \eqn{d} is the number of variables.}
 
-\item{G}{The number of clusters, which must be at least 1. If \code{G = 1}, then
-both \code{init_method} and \code{clusters} are ignored.}
+\item{G}{An integer vector specifying the numbers of clusters, which must be at least 1.}
+
+\item{criterion}{A character string indicating the information criterion for model
+selection. "BIC" is used by default. See the details section for a list of available
+information criteria.}
 
 \item{max_iter}{(optional) A numeric value giving the maximum number of
 iterations each EM algorithm is allowed to use; 20 by default.}
@@ -30,7 +34,7 @@ Aitken-based stopping criterion used in the EM algorithm: 0.01 by default.}
 
 \item{init_method}{(optional) A string specifying the method to initialize
 the EM algorithm. "kmedoids" clustering is used by default. Alternative
-methods include "kmeans", "hierarchical", and "manual". When "manual" is chosen,
+methods include "kmeans", "hierarchical", "mclust", and "manual". When "manual" is chosen,
 a vector \code{clusters} of length \eqn{n} must be specified. If the data set is
 incomplete, missing values will be first filled based on the mean imputation method.}
 
@@ -49,8 +53,8 @@ fitting progress should be displayed; TRUE by default.}
 An object of class \code{MixtureMissing} with:
   \item{model}{The model used to fit the data set.}
   \item{pi}{Mixing proportions.}
-  \item{mu}{Component mean vectors (location).}
-  \item{Sigma}{Component covariance matrices (dispersion).}
+  \item{mu}{Component location vectors.}
+  \item{Sigma}{Component dispersion matrices.}
   \item{alpha}{Component proportions of good observations.}
   \item{eta}{Component degrees of contamination.}
   \item{z_tilde}{An \eqn{n} by \eqn{G} matrix where each row indicates the expected
@@ -63,8 +67,7 @@ An object of class \code{MixtureMissing} with:
   \item{outliers}{A logical vector of length \eqn{n} indicating observations that are outliers.}
   \item{data}{The original data set if it is complete; otherwise, this is
     the data set with missing values imputed by appropriate expectations.}
-  \item{complete}{A logical vector of length \eqn{n} indicating which observation(s)
-    have no missing values.}
+  \item{complete}{An \eqn{n} by \eqn{d} logical matrix indicating which cells have no missing values.}
   \item{npar}{The breakdown of the number of parameters to estimate.}
   \item{max_iter}{Maximum number of iterations allowed in the EM algorithm.}
   \item{iter_stop}{The actual number of iterations needed when fitting the
@@ -90,6 +93,21 @@ mixture (MCNM). The function will determine itself if the data set is
 complete or incomplete and fit the appropriate model accordingly. In the incomplete
 case, the data set must be at least bivariate, and missing values are assumed to
 be missing at random (MAR).
+}
+\details{
+Available information criteria include
+\itemize{
+ \item AIC - Akaike information criterion
+  \item BIC - Bayesian information criterion
+  \item KIC - Kullback information criterion
+  \item KICc - Corrected Kullback information criterion
+  \item AIC3 - Modified AIC
+  \item CAIC - Bozdogan's consistent AIC
+  \item AICc - Small-sample version of AIC
+  \item ICL - Integrated Completed Likelihood criterion
+  \item AWE - Approximate weight of evidence
+  \item CLC - Classification likelihood criterion
+}
 }
 \examples{
 

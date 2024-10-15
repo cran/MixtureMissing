@@ -308,8 +308,8 @@ plot.MixtureMissing <- function(
     }
   }
 
-  pch_good       <- 1
-  pch_bad        <- 2
+  pch_good       <- 16
+  pch_bad        <- 17
   col_complete   <- 'black'
   col_incomplete <- '#e41a1c'
 

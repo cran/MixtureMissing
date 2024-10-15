@@ -199,7 +199,7 @@ MCNM <- function(
     #++++ Fit each model in G ++++#
 
     if (progress) {
-      cat('G = ', G, sep = '')
+      cat('Fitting G = ', G, sep = '')
     }
 
     if (any(is.na(X))) {
@@ -249,9 +249,9 @@ MCNM <- function(
 
     if (progress) {
       if (is.null(mod)) {
-        cat('\nFitting G = ', G, ' was failed\n', sep = '')
+        cat(' was failed\n', sep = '')
       } else {
-        cat('Fitting G = ', G, ' was successful\n', sep = '')
+        cat(' was successful with ', mod$iter_stop, '/', max_iter, ' iterations\n', sep = '')
       }
     }
 
@@ -388,11 +388,6 @@ MCNM_incomplete_data <- function(
   #-------------------------#
   #    The ECM Algorithm    #
   #-------------------------#
-
-  if (progress) {
-    cat('\nModel Fitting:\n')
-    pb <- txtProgressBar(min = 0, max = max_iter, style = 3, width = 75, char = "=")
-  }
 
   while (iter < max_iter & getall(loglik) > epsilon) {
 
@@ -582,17 +577,6 @@ MCNM_incomplete_data <- function(
 
     iter <- iter + 1
 
-    if (progress) {
-      setTxtProgressBar(pb, iter)
-    }
-
-  }
-
-  if (progress) {
-    close(pb)
-    if (iter < max_iter) {
-      cat('\nConvergence was reached before', max_iter, 'iterations\n')
-    }
   }
 
   #---------------------------#
@@ -788,11 +772,6 @@ MCNM_complete_data <- function(
   #    The ECM Algorithm    #
   #-------------------------#
 
-  if (progress) {
-    cat('\nModel Fitting:\n')
-    pb <- txtProgressBar(min = 0, max = max_iter, style = 3, width = 75, char = "=")
-  }
-
   while (iter < max_iter & getall(loglik) > epsilon) {
 
     #++++ E-step ++++#
@@ -880,17 +859,6 @@ MCNM_complete_data <- function(
 
     iter <- iter + 1
 
-    if (progress) {
-      setTxtProgressBar(pb, iter)
-    }
-
-  }
-
-  if (progress) {
-    close(pb)
-    if (iter < max_iter) {
-      cat('\nConvergence was reached before', max_iter, 'iterations\n')
-    }
   }
 
   #---------------------------#

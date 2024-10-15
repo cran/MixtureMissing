@@ -57,6 +57,11 @@ Available heuristic methods include k-medoids clustering, k-means clustering,
 
 #++++ Initialization using a heuristic method ++++#
 
+set.seed(1234)
+
+init <- initialize_clusters(iris[1:4], G = 3)
+init <- initialize_clusters(iris[1:4], G = 3, init_method = 'kmeans')
+init <- initialize_clusters(iris[1:4], G = 3, init_method = 'hierarchical')
 
 #++++ Initialization using user-defined labels ++++#
 

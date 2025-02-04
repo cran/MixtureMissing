@@ -2,7 +2,7 @@ Package: MixtureMissing
 Type: Package
 Title: Robust and Flexible Model-Based Clustering for Data Sets with
         Missing Values at Random
-Version: 3.0.3
+Version: 3.0.4
 Authors@R: 
   c(person(given = "Hung",
            family = "Tong",
@@ -28,8 +28,8 @@ Repository: CRAN
 RoxygenNote: 7.2.3
 Depends: R (>= 3.5.0)
 NeedsCompilation: no
-Packaged: 2024-09-26 15:08:55 UTC; hungt
+Packaged: 2025-02-04 21:24:21 UTC; hungt
 Author: Hung Tong [aut, cre],
   Cristina Tortora [aut, ths, dgs]
 Maintainer: Hung Tong <hungtongmx@gmail.com>
-Date/Publication: 2024-10-15 21:50:02 UTC
+Date/Publication: 2025-02-04 22:10:09 UTC

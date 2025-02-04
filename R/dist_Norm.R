@@ -84,11 +84,6 @@ MNM_incomplete_data <- function(
   #  The EM algorithm   #
   #---------------------#
 
-  if (progress) {
-    cat('\nModel Fitting:\n')
-    pb <- txtProgressBar(min = 0, max = max_iter, style = 3, width = 75, char = "=")
-  }
-
   while (iter < max_iter & getall(loglik) > epsilon) {
 
     #++++ E-step ++++#
@@ -240,17 +235,6 @@ MNM_incomplete_data <- function(
 
     iter <- iter + 1
 
-    if (progress) {
-      setTxtProgressBar(pb, iter)
-    }
-
-  }
-
-  if (progress) {
-    close(pb)
-    if (iter < max_iter) {
-      cat('\nConvergence was reached before', max_iter, 'iterations\n')
-    }
   }
 
   #---------------------------#
@@ -430,11 +414,6 @@ MNM_complete_data <- function(
   #    The EM Algorithm    #
   #------------------------#
 
-  if (progress) {
-    cat('\nModel Fitting:\n')
-    pb <- txtProgressBar(min = 0, max = max_iter, style = 3, width = 75, char = "=")
-  }
-
   while (iter < max_iter & getall(loglik) > epsilon) {
 
     #++++ E-step ++++#
@@ -498,17 +477,6 @@ MNM_complete_data <- function(
 
     iter <- iter + 1
 
-    if (progress) {
-      setTxtProgressBar(pb, iter)
-    }
-
-  }
-
-  if (progress) {
-    close(pb)
-    if (iter < max_iter) {
-      cat('\nConvergence was reached before', max_iter, 'iterations\n')
-    }
   }
 
   #---------------------------#
